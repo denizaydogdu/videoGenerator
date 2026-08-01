@@ -1,8 +1,6 @@
 package com.videogenerator.scheduler;
 
 import com.videogenerator.config.Configuration;
-import com.videogenerator.model.UploadResult;
-import com.videogenerator.service.ContentGeneratorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,18 +11,20 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Scheduler for automatic daily video generation
+ * Scheduler for automatic daily video generation. Task-agnostic: the
+ * injected Runnable decides WHAT runs (shorts-factory pipeline per
+ * channel); this class only decides WHEN.
  */
 public class DailyScheduler {
     private static final Logger logger = LoggerFactory.getLogger(DailyScheduler.class);
     private final Configuration config;
-    private final ContentGeneratorService contentGenerator;
+    private final Runnable task;
     private final ScheduledExecutorService scheduler;
     private volatile boolean running = false;
 
-    public DailyScheduler(ContentGeneratorService contentGenerator) {
+    public DailyScheduler(Runnable task) {
         this.config = Configuration.getInstance();
-        this.contentGenerator = contentGenerator;
+        this.task = task;
         this.scheduler = Executors.newScheduledThreadPool(1);
     }
 
@@ -102,11 +102,10 @@ public class DailyScheduler {
         logger.info("======================================");
 
         try {
-            UploadResult result = contentGenerator.generateAndUploadShort();
-            logger.info("Job completed successfully");
-            logger.info("Video uploaded: {}", result.getShortsUrl());
+            task.run();
+            logger.info("Scheduled task completed");
         } catch (Exception e) {
-            logger.error("Job execution failed", e);
+            logger.error("Scheduled task failed", e);
             // Continue running even if one execution fails
         }
 
@@ -125,11 +124,8 @@ public class DailyScheduler {
      * Stops the scheduler
      */
     public void stop() {
-        if (!running) {
-            logger.warn("Scheduler is not running");
-            return;
-        }
-
+        // Executor daima kapatılır: executeNow() start() olmadan da iş
+        // gönderebilir; erken dönüş thread sızdırırdı
         logger.info("Stopping scheduler...");
         scheduler.shutdown();
 

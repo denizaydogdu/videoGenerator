@@ -95,6 +95,30 @@ public class Main {
     }
 
     /**
+     * The scheduled task: generate one video per enabled channel via the
+     * shorts-factory pipeline. Produces PENDING_REVIEW jobs — publishing
+     * still requires human approval in the backoffice.
+     */
+    private static Runnable scheduledGenerationTask(Configuration config) {
+        return () -> {
+            try {
+                var channelStore = new com.videogenerator.channel.ChannelStore(
+                        java.nio.file.Path.of(config.getChannelsDir()));
+                for (var profile : channelStore.loadEnabled()) {
+                    try {
+                        runPipelineJob("generate", profile.getChannelId(), config);
+                    } catch (Exception e) {
+                        logger.error("Scheduled generation failed for {}",
+                                profile.getChannelId(), e);
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Scheduled generation sweep failed", e);
+            }
+        };
+    }
+
+    /**
      * Builds the publish service with the real YouTube publisher.
      * OAuth happens lazily on first upload per channel.
      */
@@ -430,7 +454,7 @@ public class Main {
         System.out.println("Schedule: " + cron);
         System.out.println("Timezone: " + config.getSchedulerTimezone());
 
-        scheduler = new DailyScheduler(contentGenerator);
+        scheduler = new DailyScheduler(scheduledGenerationTask(Configuration.getInstance()));
         scheduler.start();
 
         long secondsUntilNext = scheduler.getTimeUntilNextExecution();
@@ -444,7 +468,7 @@ public class Main {
      * Starts scheduler (for daemon mode)
      */
     private static void startScheduler(ContentGeneratorService contentGenerator) {
-        scheduler = new DailyScheduler(contentGenerator);
+        scheduler = new DailyScheduler(scheduledGenerationTask(Configuration.getInstance()));
         scheduler.start();
 
         // Add shutdown hook
