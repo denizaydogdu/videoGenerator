@@ -29,10 +29,14 @@ public class Main {
             logger.info("Configuration loaded successfully");
 
             // Shorts-factory commands run WITHOUT the legacy service stack
-            // (no Suno/Sora validation): generate <channelId> | resume <jobId>
+            // (no Suno/Sora validation): generate <channelId> | resume <jobId> | serve
             if (args.length >= 2 && ("generate".equalsIgnoreCase(args[0])
                     || "resume".equalsIgnoreCase(args[0]))) {
                 runShortsFactory(args[0].toLowerCase(), args[1], config);
+                return;
+            }
+            if (args.length >= 1 && "serve".equalsIgnoreCase(args[0])) {
+                runBackoffice(config);
                 return;
             }
 
@@ -79,10 +83,75 @@ public class Main {
     }
 
     /**
-     * Builds the shorts-factory pipeline with real clients and runs one job.
+     * Starts the backoffice review console. Generation requests from the UI
+     * run on a single-thread executor (serialized: concurrent runs of the
+     * same channel would duplicate spend).
+     */
+    private static void runBackoffice(Configuration config) {
+        try {
+            var jobStore = new com.videogenerator.job.JobStore(
+                    java.nio.file.Path.of(config.getJobsDir()));
+            var channelStore = new com.videogenerator.channel.ChannelStore(
+                    java.nio.file.Path.of(config.getChannelsDir()));
+            var costTracker = new com.videogenerator.job.CostTracker(
+                    java.nio.file.Path.of(config.getCostsDir()));
+            var service = new com.videogenerator.web.JobService(
+                    jobStore, channelStore, costTracker, config.getMonthlyBudgetUsd());
+
+            var pipelineExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+            com.videogenerator.web.BackofficeServer.JobLauncher launcher = channelId ->
+                    pipelineExecutor.submit(() -> {
+                        try {
+                            runPipelineJob("generate", channelId, config);
+                        } catch (Exception e) {
+                            // Sunucu ayakta kalır; iş FAILED olarak job.json'da görünür
+                            logger.error("Queued generation failed for {}", channelId, e);
+                        }
+                    });
+
+            var server = new com.videogenerator.web.BackofficeServer(
+                    service, launcher, config.getBackofficePort());
+            int port = server.start();
+
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                server.stop();
+                pipelineExecutor.shutdownNow();
+            }));
+
+            System.out.println("========================================");
+            System.out.println("Backoffice: http://127.0.0.1:" + port);
+            System.out.println("Ctrl-C to stop");
+            System.out.println("========================================");
+            Thread.currentThread().join(); // Ctrl-C'ye kadar blokla
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            logger.error("Backoffice failed to start", e);
+            System.exit(1);
+        }
+    }
+
+    /**
+     * CLI wrapper: runs one pipeline job and exits non-zero on failure.
      */
     private static void runShortsFactory(String command, String target, Configuration config) {
         try {
+            runPipelineJob(command, target, config);
+        } catch (Exception e) {
+            logger.error("Shorts factory {} failed", command, e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    /**
+     * Builds the shorts-factory pipeline with real clients and runs one job.
+     * Throws on failure (no System.exit) so it is safe inside the backoffice
+     * executor.
+     */
+    private static void runPipelineJob(String command, String target, Configuration config)
+            throws Exception {
+        {
             var gptClient = new com.videogenerator.api.OpenAiGptClient();
             var elevenLabs = new com.videogenerator.api.ElevenLabsClient();
             var ffmpeg = new com.videogenerator.processor.FFmpegWrapper();
@@ -125,10 +194,6 @@ public class Main {
                     + "  Cost: $" + String.format("%.2f", job.getCost().total()));
             System.out.println("Review dir: " + jobStore.dirFor(job.getJobId()));
             System.out.println("========================================");
-        } catch (Exception e) {
-            logger.error("Shorts factory {} failed", command, e);
-            System.out.println("ERROR: " + e.getMessage());
-            System.exit(1);
         }
     }
 
@@ -410,6 +475,7 @@ public class Main {
         System.out.println("\nCommands:");
         System.out.println("  generate <channelId> - Shorts factory: story→images→TTS→render (PENDING_REVIEW)");
         System.out.println("  resume <jobId>       - Resume an interrupted/failed shorts-factory job");
+        System.out.println("  serve                - Start the backoffice review console (localhost)");
         System.out.println("  generate       - Generate video (original pipeline: Music → Video → Upload)");
         System.out.println("  generate-ai    - Generate with FULL AI (Niche → TTS → Viral Ideas → Video)");
         System.out.println("  schedule       - Start automatic daily scheduler (daemon mode)");
