@@ -23,15 +23,13 @@ import java.util.Map;
 /**
  * Client for OpenAI GPT-4 API for text/metadata generation
  */
-public class OpenAiGptClient {
+public class OpenAiGptClient implements LlmClient {
     private static final Logger logger = LoggerFactory.getLogger(OpenAiGptClient.class);
     private final Configuration config;
     private final Gson gson;
     private final String apiKey;
 
-    private static final String DEFAULT_MODEL = "gpt-4";
     private static final double DEFAULT_TEMPERATURE = 0.7;
-    private static final int MAX_TOKENS = 500;
 
     public OpenAiGptClient() {
         this.config = Configuration.getInstance();
@@ -313,14 +311,22 @@ public class OpenAiGptClient {
     }
 
     /**
+     * {@link LlmClient} implementation — generic completion for services.
+     */
+    @Override
+    public String complete(String systemPrompt, String userPrompt) throws ApiException {
+        return chatCompletion(systemPrompt, userPrompt);
+    }
+
+    /**
      * Makes a chat completion request to GPT API
      */
     private String chatCompletion(String systemMessage, String userMessage) throws ApiException {
         try {
             JsonObject requestBody = new JsonObject();
-            requestBody.addProperty("model", DEFAULT_MODEL);
+            requestBody.addProperty("model", config.getLlmModel());
             requestBody.addProperty("temperature", DEFAULT_TEMPERATURE);
-            requestBody.addProperty("max_tokens", MAX_TOKENS);
+            requestBody.addProperty("max_tokens", config.getInt("llm.max.tokens", 2000));
 
             JsonArray messages = new JsonArray();
 
@@ -353,9 +359,13 @@ public class OpenAiGptClient {
             }
 
             JsonObject responseJson = gson.fromJson(response.body(), JsonObject.class);
-            String content = responseJson.getAsJsonArray("choices")
-                    .get(0).getAsJsonObject()
-                    .getAsJsonObject("message")
+            JsonObject choice = responseJson.getAsJsonArray("choices").get(0).getAsJsonObject();
+            if (choice.has("finish_reason")
+                    && "length".equals(choice.get("finish_reason").getAsString())) {
+                throw new ApiException(ApiProvider.OPENAI_GPT,
+                        "Response truncated at max_tokens; raise llm.max.tokens", 200);
+            }
+            String content = choice.getAsJsonObject("message")
                     .get("content").getAsString();
 
             logger.debug("GPT response: {}", content);
