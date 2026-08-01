@@ -6,7 +6,7 @@ import java.nio.file.*;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
-class ChannelStoreTest {
+public class ChannelStoreTest {
     public static final String VALID = """
         {"channelId":"truecrime-en","displayName":"Unsolved Files",
          "niche":{"topic":"unsolved crime","keywords":["cold case"]},

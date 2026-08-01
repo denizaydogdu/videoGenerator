@@ -24,6 +24,7 @@ public class Job {
     private List<LangVariant> variants;
     private CostBreakdown cost;
     private String error;
+    private boolean costRecorded; // guards CostTracker against double-add on resume
 
     public static Job create(String channelId) {
         Job job = new Job();
@@ -88,6 +89,14 @@ public class Job {
 
     public CostBreakdown getCost() {
         return cost;
+    }
+
+    public boolean isCostRecorded() {
+        return costRecorded;
+    }
+
+    public void setCostRecorded(boolean costRecorded) {
+        this.costRecorded = costRecorded;
     }
 
     public String getError() {

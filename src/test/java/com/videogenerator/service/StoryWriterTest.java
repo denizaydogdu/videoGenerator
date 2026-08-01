@@ -8,7 +8,7 @@ import com.videogenerator.model.Story;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-class StoryWriterTest {
+public class StoryWriterTest {
     public static final String LLM_JSON = """
         {"title":"The Lighthouse Keeper Who Vanished",
          "scenes":[
