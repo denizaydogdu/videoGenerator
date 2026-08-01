@@ -1,0 +1,16 @@
+[Unit]
+Description=YouTube Shorts Auto Generator
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+WorkingDirectory=/path/to/videoGenerator
+ExecStart=/usr/bin/java -jar /path/to/videoGenerator/target/youtube-shorts-generator-1.0.0-SNAPSHOT.jar schedule
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

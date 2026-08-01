@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  youtube-shorts-generator:
+    build: .
+    container_name: youtube-shorts-generator
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config
+      - ./output:/app/output
+      - ./logs:/app/logs
+    environment:
+      - SUNO_API_KEY=${SUNO_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
+      - TZ=UTC
