@@ -170,7 +170,11 @@ public class HttpUtil {
     private static void addHeaders(HttpRequest.Builder builder, Map<String, String> headers) {
         if (headers != null) {
             for (Map.Entry<String, String> header : headers.entrySet()) {
-                builder.header(header.getKey(), header.getValue());
+                // setHeader REPLACES: header() would append and produce
+                // duplicates (e.g. double Content-Type when both this class
+                // and the caller set it) — OpenAI then fails to parse the
+                // body and reports "you must provide a model parameter".
+                builder.setHeader(header.getKey(), header.getValue());
             }
         }
     }
