@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shorts Fabrikası — Backoffice</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Shorts Fabrikası</div>
+
+    <div class="side-section">
+      <div class="side-label">Kanallar</div>
+      <ul id="channel-list" class="side-list"></ul>
+    </div>
+
+    <div class="side-section">
+      <div class="side-label">Durum</div>
+      <ul id="status-list" class="side-list">
+        <li data-status="" class="active">Tümü</li>
+        <li data-status="PENDING_REVIEW">İnceleme bekleyen</li>
+        <li data-status="APPROVED">Onaylı</li>
+        <li data-status="PUBLISHED">Yayınlandı</li>
+        <li data-status="FAILED">Başarısız</li>
+        <li data-status="REJECTED">Reddedildi</li>
+      </ul>
+    </div>
+
+    <div class="budget">
+      <div class="side-label">Bu ay</div>
+      <div id="budget-text" class="budget-text">$0.00 / $0</div>
+      <div class="budget-bar"><div id="budget-fill" class="budget-fill"></div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h1 id="page-title">İşler</h1>
+      <button id="btn-generate" class="btn btn-primary">+ Üret</button>
+    </header>
+
+    <section id="job-grid" class="grid"></section>
+
+    <section id="job-detail" class="detail hidden">
+      <button id="btn-back" class="btn btn-ghost">← Listeye dön</button>
+      <div class="detail-body">
+        <div class="detail-left">
+          <div id="lang-tabs" class="tabs"></div>
+          <video id="player" controls playsinline></video>
+          <div class="side-label">Sahneler</div>
+          <div id="scene-strip" class="scene-strip"></div>
+        </div>
+        <div class="detail-right">
+          <label class="field">
+            <span>Başlık</span>
+            <input id="f-title" type="text" maxlength="100">
+          </label>
+          <label class="field">
+            <span>Açıklama</span>
+            <textarea id="f-description" rows="5" maxlength="5000"></textarea>
+          </label>
+          <label class="field">
+            <span>Hashtag (virgülle)</span>
+            <input id="f-hashtags" type="text">
+          </label>
+          <button id="btn-save-meta" class="btn btn-secondary">Metadata kaydet</button>
+
+          <div class="side-label platforms-label">Platformlar</div>
+          <div id="platform-checks" class="platforms">
+            <label><input type="checkbox" value="YOUTUBE" checked> YouTube</label>
+            <label><input type="checkbox" value="TIKTOK" disabled> TikTok (yakında)</label>
+            <label><input type="checkbox" value="INSTAGRAM" disabled> Instagram (yakında)</label>
+            <label><input type="checkbox" value="FACEBOOK" disabled> Facebook (yakında)</label>
+          </div>
+
+          <div class="actions">
+            <button id="btn-approve" class="btn btn-primary">Yayınla</button>
+            <button id="btn-reject" class="btn btn-danger">Reddet</button>
+          </div>
+          <div id="detail-info" class="detail-info"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlg-generate">
+  <form method="dialog">
+    <h3>Yeni üretim</h3>
+    <label class="field">
+      <span>Kanal</span>
+      <select id="gen-channel"></select>
+    </label>
+    <div class="actions">
+      <button value="ok" class="btn btn-primary">Üretimi başlat</button>
+      <button value="cancel" class="btn btn-ghost">Vazgeç</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -123,6 +123,19 @@ class BackofficeServerTest {
     }
 
     @Test
+    void staticUiServed() throws Exception {
+        HttpResponse<String> index = get("/");
+        assertEquals(200, index.statusCode());
+        assertTrue(index.headers().firstValue("Content-Type").orElse("").startsWith("text/html"));
+        assertTrue(index.body().contains("Shorts Fabrikası"));
+
+        assertEquals(200, get("/style.css").statusCode());
+        assertEquals(200, get("/app.js").statusCode());
+        assertEquals(404, get("/nope.txt").statusCode());
+        assertEquals(400, get("/..%2Fsecret").statusCode());
+    }
+
+    @Test
     void statsReturnsBudget() throws Exception {
         HttpResponse<String> res = get("/api/stats");
         assertEquals(200, res.statusCode());

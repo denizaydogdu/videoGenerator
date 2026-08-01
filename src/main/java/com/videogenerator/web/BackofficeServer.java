@@ -335,11 +335,50 @@ public class BackofficeServer {
         }
     }
 
-    // ==================== static (Task B5 fills web/) ====================
+    // ==================== static UI ====================
+
+    private static final Map<String, String> CONTENT_TYPES = Map.of(
+            "html", "text/html; charset=utf-8",
+            "css", "text/css; charset=utf-8",
+            "js", "application/javascript; charset=utf-8",
+            "png", "image/png",
+            "svg", "image/svg+xml",
+            "ico", "image/x-icon");
 
     private void handleStatic(HttpExchange ex) throws IOException {
-        sendError(ex, 404, "Not found");
-        ex.close();
+        try {
+            if (!"GET".equals(ex.getRequestMethod())) {
+                sendError(ex, 405, "Method not allowed");
+                return;
+            }
+            String rawPath = ex.getRequestURI().getRawPath();
+            if (rawPath.contains("..") || rawPath.contains("%")) {
+                sendError(ex, 400, "Invalid path");
+                return;
+            }
+            String path = rawPath.equals("/") ? "/index.html" : rawPath;
+            String ext = path.contains(".")
+                    ? path.substring(path.lastIndexOf('.') + 1) : "";
+            String contentType = CONTENT_TYPES.get(ext);
+            if (contentType == null) {
+                sendError(ex, 404, "Not found");
+                return;
+            }
+            try (var in = getClass().getResourceAsStream("/web" + path)) {
+                if (in == null) {
+                    sendError(ex, 404, "Not found");
+                    return;
+                }
+                byte[] bytes = in.readAllBytes();
+                ex.getResponseHeaders().set("Content-Type", contentType);
+                ex.sendResponseHeaders(200, bytes.length);
+                try (OutputStream os = ex.getResponseBody()) {
+                    os.write(bytes);
+                }
+            }
+        } finally {
+            ex.close();
+        }
     }
 
     // ==================== helpers ====================
