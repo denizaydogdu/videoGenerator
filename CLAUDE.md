@@ -2,6 +2,19 @@
 
 Bu doküman, YouTube Shorts Auto Generator projesinde Claude AI kullanarak nasıl geliştirme yapabileceğinizi açıklar.
 
+## 📓 Obsidian Vault Senkronizasyonu (ZORUNLU KURAL)
+
+Bu projede üretilen her önemli markdown dokümanı (tasarım, plan, ADR, durum)
+**Obsidian vault'a da yansıtılmalıdır:**
+
+- Vault konumu: `/Users/felece/Documents/Obsidian Vault/videoGenerator/`
+- Yapı: `README.md` (hub) + `01-Genel-Bakış` / `03-Mimari` / `04-Aktif-Durum` / `07-Kararlar-ADR`
+- Repo'daki spec dosyaları **tek doğruluk kaynağıdır**; vault sayfaları özet + link tutar
+- Her önemli oturum sonunda: `04-Aktif-Durum.md` güncellenir, vault kökündeki
+  `log.md`'ye ters kronolojik kayıt eklenir (en yeni EN ÜSTTE), yeni sayfa
+  açıldıysa vault `index.md`'ye eklenir
+- Obsidian bağlantı formatı: `[[videoGenerator/Sayfa-Adı]]`
+
 ## 📋 Proje Hakkında
 
 Bu proje, **tamamen AI destekli** bir YouTube Shorts video üretim sistemidir. Pure Java SE ile geliştirilmiş olup, şu özellikleri içerir:
