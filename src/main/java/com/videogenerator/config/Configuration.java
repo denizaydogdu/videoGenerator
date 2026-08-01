@@ -134,12 +134,24 @@ public class Configuration {
 
     // Video Settings
     public int getVideoWidth() {
-        return getInt("video.width", 720);
+        return getInt("video.width", 1080);
     }
 
     public int getVideoHeight() {
-        return getInt("video.height", 1280);
+        return getInt("video.height", 1920);
     }
+
+    // Shorts factory settings
+    public String getLlmModel()         { return get("llm.model", "gpt-5.6-luna"); }
+    public String getImageModel()       { return get("image.model", "gpt-image-2"); }
+    public String getImageQuality()     { return get("image.quality", "medium"); }
+    public String getImageSize()        { return get("image.size", "1024x1536"); }
+    public String getMusicModel()       { return get("music.model", "music_v2"); }
+    public double getMonthlyBudgetUsd() { return getDouble("budget.monthly.usd", 100.0); }
+    public int getBackofficePort()      { return getInt("backoffice.port", 8080); }
+    public String getChannelsDir()      { return get("channels.dir", "channels"); }
+    public String getJobsDir()          { return get("jobs.dir", "output/jobs"); }
+    public String getCostsDir()         { return get("costs.dir", "output/costs"); }
 
     public int getVideoFps() {
         return getInt("video.fps", 30);
@@ -300,7 +312,7 @@ public class Configuration {
     }
 
     public String getTtsModel() {
-        return get("tts.model", "eleven_multilingual_v2");
+        return get("tts.model", "eleven_v3");
     }
 
     public double getTtsStability() {
