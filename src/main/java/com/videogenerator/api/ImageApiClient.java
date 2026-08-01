@@ -65,8 +65,10 @@ public class ImageApiClient implements ImageGenerator {
                             HttpResponse<String> r = HttpUtil.post(url, body, headers);
                             int code = r.statusCode();
                             if (code == 429 || code >= 500) {
-                                throw new RuntimeException(
-                                        "Retryable image API status " + code);
+                                // ApiException cause makes RetryPolicy classify as retryable
+                                throw new RuntimeException(new ApiException(
+                                        ApiProvider.OPENAI_GPT,
+                                        "Retryable image API status " + code, code));
                             }
                             return r;
                         } catch (java.io.IOException | InterruptedException e) {

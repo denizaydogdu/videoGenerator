@@ -70,22 +70,21 @@ public class RetryPolicy {
      * Determines if an exception is retryable
      */
     private boolean shouldRetry(Exception e) {
-        // Retry on ApiException if it's retryable
-        if (e instanceof ApiException) {
-            return ((ApiException) e).isRetryable();
+        // Walk the cause chain: callers often wrap ApiException/IOException
+        // in RuntimeException to cross the Supplier boundary.
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof ApiException api) {
+                return api.isRetryable();
+            }
+            if (t instanceof java.io.IOException) {
+                return true;
+            }
+            if (t instanceof InterruptedException) {
+                return true;
+            }
+            t = t.getCause();
         }
-
-        // Retry on IOException (network issues)
-        if (e instanceof java.io.IOException) {
-            return true;
-        }
-
-        // Retry on InterruptedException
-        if (e instanceof InterruptedException) {
-            return true;
-        }
-
-        // Don't retry on other exceptions
         return false;
     }
 
