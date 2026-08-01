@@ -38,7 +38,9 @@ public class TranslationService {
                 Story title: %s
                 Target language code: %s
                 Rewrite the following numbered narration lines in the target language,
-                keeping the same order, count and dramatic tone. Then produce viral
+                keeping the same order, count and dramatic tone. Keep each line the SAME
+                length as the original or SHORTER - never expand (this is spoken audio
+                with a strict time budget). Then produce viral
                 platform metadata (title, description, 3-5 hashtags) in the SAME language.
                 Narrations:
                 %s

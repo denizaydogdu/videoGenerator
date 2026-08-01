@@ -207,6 +207,7 @@ class JobPipelineTest {
         Job resumed = fixed.resume(failed.getJobId());
 
         assertEquals(JobStatus.PENDING_REVIEW, resumed.getStatus());
+        assertNull(resumed.getError(), "başarılı koşu bayat error alanını temizlemeli");
         assertEquals(2, resumed.getVariants().size());
         assertEquals(1, renderCalls.get("en")); // en YENİDEN render edilmedi
         assertEquals(2, renderCalls.get("es")); // 1 çöken + 1 başarılı

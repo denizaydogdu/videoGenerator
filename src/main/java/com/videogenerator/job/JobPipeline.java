@@ -231,6 +231,7 @@ public class JobPipeline {
                 costTracker.add(job.getCost().total());
                 job.setCostRecorded(true);
             }
+            job.setError(null); // önceki başarısız denemenin bayat hatası kalmasın
             job.setStatus(JobStatus.PENDING_REVIEW);
             jobStore.save(job);
             logger.info("Job {} ready for review ({} variants, ${})",

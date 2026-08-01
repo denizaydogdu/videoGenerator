@@ -27,16 +27,23 @@ public class StoryWriter {
     public Story write(ContentIdea idea, ChannelProfile profile) throws ApiException {
         String system = "You write scripts for short vertical documentary videos. "
                 + "Respond with ONLY valid JSON, no markdown fences.";
+        // 2.2 kelime/sn: TTS temposu + ES/TR çevirilerinin ~%15 uzaması payı.
+        // İlk canlı koşuda bütçesiz promptlar hedefi %25-55 aştı (93-116 sn).
+        int totalWords = (int) Math.round(profile.getTargetDurationSeconds() * 2.2);
+        int wordsPerScene = totalWords / profile.getSceneCount();
         String user = String.format("""
                 Topic: %s
                 Niche: %s
                 Write a gripping %d-second story in English split into EXACTLY %d scenes.
+                HARD LIMIT: total narration across ALL scenes must not exceed %d words
+                (about %d words per scene). Shorter is better than longer.
                 Each scene: 1-2 spoken sentences ("narration") and one visual description
                 ("imagePrompt") showing PLACES, OBJECTS, DOCUMENTS or SILHOUETTES - never a
                 recognizable human face. JSON shape:
                 {"title": "...", "scenes":[{"narration":"...","imagePrompt":"..."}]}""",
                 idea.getTitle(), profile.getNiche().getTopic(),
-                profile.getTargetDurationSeconds(), profile.getSceneCount());
+                profile.getTargetDurationSeconds(), profile.getSceneCount(),
+                totalWords, wordsPerScene);
 
         String raw = LlmJson.strip(llm.complete(system, user));
         Story story;
