@@ -64,6 +64,18 @@ public class JobPipeline {
     private final CostTracker costTracker;
     private final IdeaGenerator ideaGenerator;
     private final boolean musicEnabled;
+    private Path localMusicDir; // F5: telifsiz yerel müzik klasörü (opsiyonel)
+
+    /** F4b — dil başına son-kart seri vaadi (görsel CTA; sesli CTA yok). */
+    private static final java.util.Map<String, String> END_CARDS = java.util.Map.of(
+            "tr", "YARIN YENİ DOSYA →",
+            "en", "NEW CASE TOMORROW →",
+            "es", "NUEVO CASO MAÑANA →");
+
+    public JobPipeline withLocalMusicDir(Path dir) {
+        this.localMusicDir = dir;
+        return this;
+    }
 
     public JobPipeline(JobStore jobStore, ChannelStore channelStore, LlmClient llm,
                        ImageGenerator imageGen, MusicGenerator musicGen,
@@ -170,9 +182,19 @@ public class JobPipeline {
                 }
                 job.setMusicFile("audio/music.mp3");
             } else {
-                // Voice-only mode (e.g. ElevenLabs free plan has no Music API)
-                logger.info("music.enabled=false — rendering voice-only");
-                job.setMusicFile(null);
+                // F5: API müziği kapalı — yerel telifsiz kütüphaneden dene
+                Path local = LocalMusicLibrary.pickFor(job.getJobId(), localMusicDir);
+                if (local != null && !Files.exists(musicPath)) {
+                    Files.createDirectories(musicPath.getParent());
+                    Files.copy(local, musicPath);
+                    job.setMusicFile("audio/music.mp3");
+                    logger.info("Local music bed: {}", local.getFileName());
+                } else if (Files.exists(musicPath)) {
+                    job.setMusicFile("audio/music.mp3");
+                } else {
+                    logger.info("music disabled & no local library — voice-only");
+                    job.setMusicFile(null);
+                }
             }
             job.setStatus(JobStatus.RENDERING);
             jobStore.save(job);
@@ -203,9 +225,11 @@ public class JobPipeline {
                 double[] ends = SceneTimer.sceneEndTimes(
                         localized.getNarrations(), tts.alignment());
                 double[] sceneDurations = SceneTimer.sceneDurations(ends);
-                // F3: karaoke stil — kelime-kelime sarı vurgu
+                // F3+F4b: karaoke stil + son-kart seri vaadi
                 File ass = SubtitleRenderer.writeKaraoke(tts.alignment(), 3,
-                        localized.getHookText(), dir.resolve("subs/" + lang + ".ass"));
+                        localized.getHookText(),
+                        END_CARDS.getOrDefault(lang, END_CARDS.get("en")),
+                        dir.resolve("subs/" + lang + ".ass"));
 
                 // F2: sahne süresi o sahnenin görselleri arasında eşit bölünür
                 // → her 3-6 saniyede görüntü değişimi (tutma sinyali)
@@ -227,7 +251,8 @@ public class JobPipeline {
                 }
                 Files.createDirectories(renderOut.getParent());
                 renderEngine.render(images, durations, tts.audioFile(),
-                        musicEnabled ? musicPath.toFile() : null, ass, renderOut);
+                        job.getMusicFile() != null ? musicPath.toFile() : null,
+                        ass, renderOut);
 
                 LangVariant variant = new LangVariant();
                 variant.setLang(lang);

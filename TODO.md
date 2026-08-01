@@ -38,13 +38,11 @@
 - [x] **Hook ters çevirme** ✅ (2026-08-02 — StoryWriter 2.0 promptu)
 - [x] **İlk karede ekran yazısı** ✅ (2026-08-02 — hookText: üretim+çeviri+ASS overlay 2.2sn)
 - [x] **Süre hedefi 75→60 sn** ✅ (2026-08-02 — profiller güncellendi)
-- [ ] **Görsel tempo:** sahne başına 2-3 görsel → her 3-6 sn'de görüntü
-      değişimi (maliyet ~$0.96/hikâye olur, değer)
-- [ ] **Karaoke altyazı:** kelime-kelime vurgu, aksan renkli (alignment
-      verisi hazır; SubtitleRenderer güncellemesi)
+- [x] **Görsel tempo** ✅ (2026-08-02 — sahne başına 2 görsel, 01a/01b, süre bölüşümü)
+- [x] **Karaoke altyazı** ✅ (2026-08-02 — kelime başına event, aktif kelime altın sarısı)
 - [x] **Loop sonu** ✅ (2026-08-02 — StoryWriter LOOP RULE)
-- [ ] **Telifsiz müzik yatağı:** Pixabay/ZapSplat'ten 3-5 karanlık ambient
-      mp3 → assets/music/ → rastgele seçilip mikslenir (ElevenLabs beklemeden)
+- [x] **Telifsiz müzik yatağı (kod)** ✅ (2026-08-02 — LocalMusicLibrary, deterministik)
+      - [ ] Deniz: assets/music/ altına 3-5 mp3 indir (README'de kaynaklar)
 
 ## 4️⃣b BÜYÜME PLAYBOOK ENTEGRASYONU — 5-ajan araştırmasından
 > Detay: `thoughts/research/2026-08-02-buyume-playbook.md`
@@ -52,8 +50,7 @@
 - [ ] **İçerik stratejisi TR-merkezli:** %70 Türk vakası / %30 uluslararası;
       mikro-niş kilidi ("çözülmemiş kayıp/faili meçhul") ilk 15-20 video
 - [x] **StoryWriter'a yasal korkuluklar** ✅ (2026-08-02 — FACTUAL RULES: gerçek+kesinleşmiş/10yıl, alleged dili, likeness yasağı; dipnot F6'da)
-- [ ] **Başlık şablonu bankası** (dil başına 2-3 kalıp; EN'de arama-sorgusu
-      formatı "What happened to X?")
+- [x] **Başlık şablonu bankası** ✅ (2026-08-02 — TR/EN/ES kalıpları çeviri promptunda)
 - [ ] **Seri mekaniği:** Bölüm 1/2 cliffhanger + "Bölüm 2 yazın"
       yorum-kapısı + Dosya #N numaralama
 - [x] **Anti-slop çeşitlendirme** ✅ (2026-08-02 — 5 tempo varyantı rotasyonu + birincil-kaynak zorunluluğu promptta)

@@ -40,6 +40,29 @@ class TranslationServiceTest {
     }
 
     @Test
+    void promptCarriesTitleFormulaBank() throws Exception {
+        // F6 — dil başına kazanan başlık kalıpları prompta girer
+        java.util.concurrent.atomic.AtomicReference<String> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        LlmClient fake = (sys, user) -> { captured.set(user); return TR_JSON; };
+        new TranslationService(fake).localize(
+                storyWithScenes("one", "two"), "tr");
+        assertTrue(captured.get().contains("kimse çözemedi")
+                        || captured.get().contains("Polis bile"),
+                "TR başlık kalıpları prompta girmeli:\n" + captured.get());
+    }
+
+    @Test
+    void descriptionGetsLegalDisclaimerFooter() throws Exception {
+        // F6 — yasal dipnot: kamu kayıtlarına dayanma notu otomatik eklenir
+        LlmClient fake = (sys, user) -> TR_JSON;
+        LocalizedStory loc = new TranslationService(fake)
+                .localize(storyWithScenes("one", "two"), "tr");
+        assertTrue(loc.getMetadata().getDescription().contains("kamuya yansımış"),
+                "TR dipnot eklenmiş olmalı: " + loc.getMetadata().getDescription());
+    }
+
+    @Test
     void rejectsEmptyMetadata() {
         Story story = storyWithScenes("one", "two");
         LlmClient fake = (sys, user) ->

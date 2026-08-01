@@ -52,3 +52,5 @@ channels/*.json
 # Local runtime artifacts
 data/
 .claude/tsc-cache/
+assets/music/*.mp3
+config/tokens/

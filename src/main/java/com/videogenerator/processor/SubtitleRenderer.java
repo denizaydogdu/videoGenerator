@@ -158,6 +158,19 @@ public final class SubtitleRenderer {
      * kaybolmaz); grubun son kelimesi kendi bitişinde kapanır.
      */
     public static String toKaraokeAss(Alignment a, int maxWordsPerGroup, String hookText) {
+        return toKaraokeAss(a, maxWordsPerGroup, hookText, null);
+    }
+
+    /** Son-kart süresi: kapanıştaki görsel seri vaadi penceresi. */
+    private static final double END_CARD_SECONDS = 2.5;
+
+    /**
+     * @param endText null değilse son ~2.5 sn'de alt bölgede küçük seri
+     *                vaadi gösterilir ("YARIN YENİ DOSYA →") — sesli CTA
+     *                yerine görsel; loop'u ve tamamlanmayı bozmaz
+     */
+    public static String toKaraokeAss(Alignment a, int maxWordsPerGroup,
+                                      String hookText, String endText) {
         List<Word> words = extractWords(a);
         StringBuilder events = new StringBuilder();
         for (int g = 0; g < words.size(); g += maxWordsPerGroup) {
@@ -186,11 +199,24 @@ public final class SubtitleRenderer {
                         assTime(start), assTime(end), text));
             }
         }
-        return assDocument(hookText, events.toString());
+        if (endText != null && !endText.isBlank()) {
+            double total = a.totalDuration();
+            double start = Math.max(0, total - END_CARD_SECONDS);
+            events.append(String.format(Locale.ROOT,
+                    "Dialogue: 2,%s,%s,EndCard,,0,0,0,,%s%n",
+                    assTime(start), assTime(total), escapeAssText(endText)));
+        }
+        return assDocument(hookText, endText != null && !endText.isBlank(),
+                events.toString());
+    }
+
+    private static String assDocument(String hookText, String eventLines) {
+        return assDocument(hookText, false, eventLines);
     }
 
     /** Ortak ASS iskeleti: stiller + hook + verilen event satırları. */
-    private static String assDocument(String hookText, String eventLines) {
+    private static String assDocument(String hookText, boolean withEndCard,
+                                      String eventLines) {
         boolean hasHook = hookText != null && !hookText.isBlank();
         StringBuilder sb = new StringBuilder("""
                 [Script Info]
@@ -205,6 +231,11 @@ public final class SubtitleRenderer {
         if (hasHook) {
             sb.append("Style: Hook,Arial,88,&H0000D7FF,&H00000000,&H90000000,"
                     + "-1,5,0,8,60,60,260\n");
+        }
+        if (withEndCard) {
+            // Küçük punto, alt-orta, altyazının hemen üstünde (MarginV 560)
+            sb.append("Style: EndCard,Arial,52,&H00FFFFFF,&H00000000,&H90000000,"
+                    + "-1,3,0,2,60,60,560\n");
         }
         sb.append("""
 
@@ -225,11 +256,11 @@ public final class SubtitleRenderer {
         return write(cues, null, out);
     }
 
-    /** F3: pipeline'ın kullandığı karaoke yazıcı. */
+    /** F3+F4b: pipeline'ın kullandığı karaoke + son-kart yazıcı. */
     public static File writeKaraoke(Alignment a, int maxWordsPerGroup, String hookText,
-                                    Path out) throws IOException {
+                                    String endText, Path out) throws IOException {
         Files.createDirectories(out.getParent());
-        Files.writeString(out, toKaraokeAss(a, maxWordsPerGroup, hookText));
+        Files.writeString(out, toKaraokeAss(a, maxWordsPerGroup, hookText, endText));
         return out.toFile();
     }
 

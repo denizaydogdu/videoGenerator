@@ -25,6 +25,27 @@ public class TranslationService {
         this.llm = llm;
     }
 
+    /** F6 — dil başına kazanan başlık kalıpları (büyüme playbook'u §A3). */
+    private static final java.util.Map<String, String> TITLE_FORMULAS = java.util.Map.of(
+            "tr", """
+                - "Bu [vakayı/cinayeti] [N] yıldır kimse çözemedi"
+                - "Polis bile açıklayamadı: ..."
+                - "Türkiye'nin en gizemli [kayıp/faili meçhul] vakası\"""",
+            "en", """
+                - "What happened to [name]?" (search-query format)
+                - "How Police Caught/Lost [case]"
+                - "[N] Years Later, No One Can Explain..."\"""",
+            "es", """
+                - "¿Qué le pasó a [nombre]?"
+                - "Nadie ha podido resolver este caso en [N] años"
+                - "La policía nunca pudo explicar..."\"""");
+
+    /** F6 — yasal/şeffaflık dipnotu; açıklamanın sonuna otomatik eklenir. */
+    private static final java.util.Map<String, String> DISCLAIMERS = java.util.Map.of(
+            "tr", "Bu video kamuya yansımış yargı kararlarına ve basına dayanmaktadır.",
+            "en", "Based on public court records and published press reports.",
+            "es", "Basado en registros judiciales públicos e informes de prensa.");
+
     public LocalizedStory localize(Story story, String lang) throws ApiException {
         StringBuilder numbered = new StringBuilder();
         int i = 1;
@@ -44,12 +65,16 @@ public class TranslationService {
                 with a strict time budget). Also translate the on-screen hook text
                 ("hookText", keep it 4-7 punchy words). Then produce viral
                 platform metadata (title, description, 3-5 hashtags) in the SAME language.
+                Title MUST follow one of these proven formulas for this language:
+                %s
                 Narrations:
                 %s
                 JSON shape:
                 {"narrations":["..."],"hookText":"...",
                  "metadata":{"title":"...","description":"...","hashtags":["#..."]}}""",
-                story.getTitle(), story.getHookText(), lang, numbered);
+                story.getTitle(), story.getHookText(), lang,
+                TITLE_FORMULAS.getOrDefault(lang, TITLE_FORMULAS.get("en")),
+                numbered);
 
         String raw = LlmJson.strip(llm.complete(system, user));
         LocalizedStory loc;
@@ -72,6 +97,10 @@ public class TranslationService {
             // Kaynak hikâyedeki hook'a geri düş — overlay boş kalmasın
             loc.setHookText(story.getHookText());
         }
+        // F6: şeffaflık/yasal dipnot — her açıklamanın sonuna
+        String disclaimer = DISCLAIMERS.getOrDefault(lang, DISCLAIMERS.get("en"));
+        loc.getMetadata().setDescription(
+                loc.getMetadata().getDescription() + "\n\n" + disclaimer);
         logger.info("Localized story to {}: {}", lang, loc.getMetadata().getTitle());
         return loc;
     }

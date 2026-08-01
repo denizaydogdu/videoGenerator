@@ -296,7 +296,9 @@ public class Main {
                         new com.videogenerator.processor.KenBurnsRenderer(ffmpeg)),
                 budgetGuard, costTracker,
                 new com.videogenerator.service.IdeaGenerator(gptClient),
-                config.getBoolean("music.enabled", true));
+                config.getBoolean("music.enabled", true))
+                .withLocalMusicDir(java.nio.file.Path.of(
+                        config.get("music.local.dir", "assets/music")));
 
         com.videogenerator.job.Job job = "resume".equals(command)
                 ? pipeline.resume(target)
