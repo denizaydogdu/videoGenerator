@@ -35,12 +35,28 @@ public class PublishService {
     private final JobStore jobStore;
     private final ChannelStore channelStore;
     private final Map<String, Publisher> publishers;
+    private final UploadCounter uploadCounter;
+    private final int dailyUploadLimit;
 
+    /** Limitless variant (tests / non-YouTube future platforms). */
     public PublishService(JobStore jobStore, ChannelStore channelStore,
                           Map<String, Publisher> publishers) {
+        this(jobStore, channelStore, publishers, null, Integer.MAX_VALUE);
+    }
+
+    /**
+     * @param dailyUploadLimit hard cap on uploads per calendar day — protects
+     *                         the channel from spam signals and API quota
+     *                         (videos.insert has its own daily bucket)
+     */
+    public PublishService(JobStore jobStore, ChannelStore channelStore,
+                          Map<String, Publisher> publishers,
+                          UploadCounter uploadCounter, int dailyUploadLimit) {
         this.jobStore = jobStore;
         this.channelStore = channelStore;
         this.publishers = publishers;
+        this.uploadCounter = uploadCounter;
+        this.dailyUploadLimit = dailyUploadLimit;
     }
 
     public synchronized Job publishApproved(String jobId) {
@@ -79,11 +95,29 @@ public class PublishService {
                     logger.warn("No publisher for {} — recorded skip", platform);
                     continue;
                 }
+                if (uploadCounter != null && uploadCounter.today() >= dailyUploadLimit) {
+                    // Limit dolunca durum PUBLISHING kalır; ertesi gün
+                    // 'publish <jobId>' veya yeni approve tetiği devam ettirir
+                    job.setError("Daily upload limit reached (" + dailyUploadLimit + ")");
+                    jobStore.save(job);
+                    throw new IllegalStateException(
+                            "Daily upload limit reached (" + dailyUploadLimit + ")");
+                }
                 try {
                     Publication pub = publisher.publish(job, variant, profile,
                             jobStore.dirFor(job.getJobId()));
+                    // Idempotency marker ÖNCE kalıcı olur; sayaç yazımı upload
+                    // gerçekleştikten sonra asla ölümcül olamaz (aksi halde
+                    // resume aynı videoyu ikinci kez yükler)
                     variant.getPublications().add(pub);
                     jobStore.save(job);
+                    if (uploadCounter != null) {
+                        try {
+                            uploadCounter.increment();
+                        } catch (RuntimeException e) {
+                            logger.warn("Upload counter write failed (non-fatal)", e);
+                        }
+                    }
                     logger.info("Published {} [{}] -> {}",
                             job.getJobId(), variant.getLang(), pub.getUrl());
                 } catch (Exception e) {

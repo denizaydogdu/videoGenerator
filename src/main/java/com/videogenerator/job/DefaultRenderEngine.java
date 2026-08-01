@@ -32,6 +32,11 @@ public class DefaultRenderEngine implements JobPipeline.RenderEngine {
         String jobId = out.getParent().getParent().getFileName().toString();
         String mixName = jobId + "-" + out.getFileName().toString().replace(".mp4", "-mix");
         File mixed = audioProcessor.mixVoiceoverAndMusic(voiceover, music, mixName);
-        return kenBurns.render(images, durations, mixed, assFile, out);
+        try {
+            return kenBurns.render(images, durations, mixed, assFile, out);
+        } finally {
+            // temp/ birikmesin: miks yalnız render girdisi, kalıcı değeri yok
+            java.nio.file.Files.deleteIfExists(mixed.toPath());
+        }
     }
 }

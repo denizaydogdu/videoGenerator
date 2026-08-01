@@ -163,6 +163,8 @@ public class YouTubeApiClient {
 
         VideoStatus status = new VideoStatus();
         status.setPrivacyStatus(privacyStatus);
+        // Audience beyanı zorunlu: içeriğimiz çocuklara yönelik değil (COPPA)
+        status.setSelfDeclaredMadeForKids(false);
         if (syntheticMedia) {
             // Generic set: survives client-library versions that predate the
             // typed setter for this field

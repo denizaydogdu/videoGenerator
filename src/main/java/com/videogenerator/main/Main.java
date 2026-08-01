@@ -175,7 +175,10 @@ public class Main {
             return client::uploadVideo;
         });
         return new com.videogenerator.publish.PublishService(
-                jobStore, channelStore, java.util.Map.of("YOUTUBE", youtube));
+                jobStore, channelStore, java.util.Map.of("YOUTUBE", youtube),
+                new com.videogenerator.publish.UploadCounter(
+                        java.nio.file.Path.of(config.getCostsDir())),
+                config.getYouTubeDailyLimit());
     }
 
     /**

@@ -148,6 +148,30 @@ class PublishServiceTest {
     }
 
     @Test
+    void dailyUploadLimitBlocksAndResumes(@TempDir Path root) throws Exception {
+        JobStore store = new JobStore(root.resolve("jobs"));
+        Job job = approvedJob(store, "ch1", "en", "es");
+        AtomicInteger calls = new AtomicInteger();
+        UploadCounter counter = new UploadCounter(root.resolve("costs"));
+        PublishService limited = new PublishService(store, channels(root),
+                Map.of("YOUTUBE", countingPublisher(calls, "https://yt/")),
+                counter, 1); // günlük limit 1
+
+        assertThrows(IllegalStateException.class,
+                () -> limited.publishApproved(job.getJobId()));
+        assertEquals(1, calls.get(), "limit sonrası upload durmalı");
+        assertEquals(JobStatus.PUBLISHING, store.load(job.getJobId()).getStatus());
+
+        // "Ertesi gün": yeni sayaç dizini = sıfır sayaç
+        PublishService fresh = new PublishService(store, channels(root),
+                Map.of("YOUTUBE", countingPublisher(calls, "https://yt/")),
+                new UploadCounter(root.resolve("costs2")), 10);
+        Job done = fresh.publishApproved(job.getJobId());
+        assertEquals(JobStatus.PUBLISHED, done.getStatus());
+        assertEquals(2, calls.get(), "yalnız eksik varyant yüklenmeli");
+    }
+
+    @Test
     void missingPublisherRecordsSkip(@TempDir Path root) throws Exception {
         JobStore store = new JobStore(root.resolve("jobs"));
         Job job = approvedJob(store, "ch1", "en");

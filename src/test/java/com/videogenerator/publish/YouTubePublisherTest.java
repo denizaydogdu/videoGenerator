@@ -38,6 +38,8 @@ class YouTubePublisherTest {
         assertEquals("10", video.getSnippet().getCategoryId());
         assertEquals("public", video.getStatus().getPrivacyStatus());
         assertEquals(Boolean.TRUE, video.getStatus().get("containsSyntheticMedia"));
+        assertEquals(Boolean.FALSE, video.getStatus().getSelfDeclaredMadeForKids(),
+                "audience beyanı zorunlu: çocuklara yönelik değil");
         assertTrue(video.getSnippet().getTags().contains("mystery")); // # olmadan
     }
 
