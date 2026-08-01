@@ -44,10 +44,21 @@ public class YouTubeApiClient {
     );
 
     private final Configuration config;
+    private final String tokenDirName;
     private YouTube youtubeService;
 
     public YouTubeApiClient() throws GeneralSecurityException, IOException {
+        this("tokens");
+    }
+
+    /**
+     * @param tokenDirName token storage subdirectory under config/ — one per
+     *                      channel so multiple channels keep separate OAuth
+     *                      credentials
+     */
+    public YouTubeApiClient(String tokenDirName) throws GeneralSecurityException, IOException {
         this.config = Configuration.getInstance();
+        this.tokenDirName = tokenDirName;
         this.youtubeService = getService();
     }
 
@@ -70,7 +81,7 @@ public class YouTubeApiClient {
         GoogleClientSecrets clientSecrets = loadClientSecrets();
 
         // Build flow
-        File tokenStorageDir = new File(config.getConfigDir(), "tokens");
+        File tokenStorageDir = new File(config.getConfigDir(), tokenDirName);
         GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
                 httpTransport, JSON_FACTORY, clientSecrets, SCOPES)
                 .setDataStoreFactory(new FileDataStoreFactory(tokenStorageDir))
@@ -130,34 +141,46 @@ public class YouTubeApiClient {
     }
 
     /**
+     * Builds the Video resource for upload. Static and side-effect free so
+     * the request shape (incl. the synthetic-media declaration) is testable
+     * without OAuth.
+     */
+    public static Video buildVideoResource(VideoMetadata metadata, String categoryId,
+                                           String privacyStatus, boolean syntheticMedia) {
+        VideoSnippet snippet = new VideoSnippet();
+        snippet.setTitle(metadata.getTitle());
+        snippet.setDescription(metadata.getDescription());
+        snippet.setCategoryId(categoryId);
+        if (metadata.getYouTubeTags().length > 0) {
+            snippet.setTags(Arrays.asList(metadata.getYouTubeTags()));
+        }
+
+        VideoStatus status = new VideoStatus();
+        status.setPrivacyStatus(privacyStatus);
+        if (syntheticMedia) {
+            // Generic set: survives client-library versions that predate the
+            // typed setter for this field
+            status.set("containsSyntheticMedia", Boolean.TRUE);
+        }
+
+        Video video = new Video();
+        video.setSnippet(snippet);
+        video.setStatus(status);
+        return video;
+    }
+
+    /**
      * Uploads a video to YouTube
      */
     public UploadResult uploadVideo(File videoFile, VideoMetadata metadata) throws UploadException {
         logger.info("Uploading video: {} ({})", videoFile.getName(), metadata.getTitle());
 
         try {
-            // Create video snippet
-            VideoSnippet snippet = new VideoSnippet();
-            snippet.setTitle(metadata.getTitle());
-            snippet.setDescription(metadata.getDescription());
-            snippet.setCategoryId(config.getYouTubeCategoryId());
-
-            // Add tags (hashtags without #)
-            if (metadata.getYouTubeTags().length > 0) {
-                snippet.setTags(Arrays.asList(metadata.getYouTubeTags()));
-            }
-
-            // Set video status
-            VideoStatus status = new VideoStatus();
-            status.setPrivacyStatus(config.getYouTubePrivacyStatus());
-
-            // Mark as Shorts (important for YouTube to recognize it as Shorts)
-            // This is done by ensuring video is < 60s and 9:16 aspect ratio
-
-            // Create video with snippet and status
-            Video video = new Video();
-            video.setSnippet(snippet);
-            video.setStatus(status);
+            // AI-generated content: synthetic media declaration is mandatory
+            // per YouTube's disclosure policy
+            Video video = buildVideoResource(metadata,
+                    config.getYouTubeCategoryId(),
+                    config.getYouTubePrivacyStatus(), true);
 
             // Create upload stream
             InputStreamContent mediaContent = new InputStreamContent(
