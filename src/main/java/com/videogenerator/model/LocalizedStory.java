@@ -8,7 +8,16 @@ import java.util.List;
  */
 public class LocalizedStory {
     private List<String> narrations;
+    private String hookText; // ekran hook yazısının hedef dildeki hali
     private VideoMetadata metadata;
+
+    public String getHookText() {
+        return hookText;
+    }
+
+    public void setHookText(String hookText) {
+        this.hookText = hookText;
+    }
 
     public List<String> getNarrations() {
         return narrations;

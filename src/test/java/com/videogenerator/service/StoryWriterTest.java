@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class StoryWriterTest {
     public static final String LLM_JSON = """
         {"title":"The Lighthouse Keeper Who Vanished",
+         "hookText":"Locked from the inside.",
          "scenes":[
            {"narration":"In 1972, a keeper disappeared.","imagePrompt":"abandoned lighthouse at dusk"},
            {"narration":"His logbook ended mid-sentence.","imagePrompt":"open logbook on wooden desk"},

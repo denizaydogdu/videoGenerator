@@ -7,8 +7,17 @@ import java.util.List;
  */
 public class Story {
     private String title;
+    private String hookText; // ilk karede gösterilen 4-7 kelimelik ekran yazısı
     private String stylePrefix;
     private List<StoryScene> scenes;
+
+    public String getHookText() {
+        return hookText;
+    }
+
+    public void setHookText(String hookText) {
+        this.hookText = hookText;
+    }
 
     public String getTitle() {
         return title;

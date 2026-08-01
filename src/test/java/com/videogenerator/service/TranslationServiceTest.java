@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TranslationServiceTest {
     static final String TR_JSON = """
         {"narrations":["1972'de bir bekçi kayboldu.","Seyir defteri yarım kaldı."],
+         "hookText":"İçeriden kilitliydi.",
          "metadata":{"title":"Kaybolan Fener Bekçisi","description":"Gerçek bir gizem.",
                      "hashtags":["#gizem","#gerçeksuç"]}}""";
 
@@ -34,6 +35,7 @@ class TranslationServiceTest {
 
         assertEquals(2, loc.getNarrations().size());
         assertEquals("Kaybolan Fener Bekçisi", loc.getMetadata().getTitle());
+        assertEquals("İçeriden kilitliydi.", loc.getHookText());
         assertEquals(List.of("#gizem", "#gerçeksuç"), loc.getMetadata().getHashtags());
     }
 

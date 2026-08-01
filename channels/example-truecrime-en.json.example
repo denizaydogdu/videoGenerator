@@ -9,7 +9,7 @@
   "voiceId": "JBFqnCBsd6RMkjVDRZzb",
   "languages": ["en", "es", "tr"],
   "platforms": ["YOUTUBE"],
-  "targetDurationSeconds": 75,
+  "targetDurationSeconds": 60,
   "sceneCount": 6,
   "youtubeTokenFile": "config/tokens/truecrime-en.json",
   "enabled": true

@@ -56,7 +56,19 @@ public final class SubtitleRenderer {
         return cues;
     }
 
+    /** Hook süresi: ilk 2.2 sn — sessiz izleyicinin kaydırma kararı anı. */
+    private static final double HOOK_SECONDS = 2.2;
+
     public static String toAss(List<SubtitleCue> cues) {
+        return toAss(cues, null);
+    }
+
+    /**
+     * @param hookText null değilse üst-ortada, ilk {@value HOOK_SECONDS}
+     *                 saniyede büyük punto sarı hook yazısı basılır
+     */
+    public static String toAss(List<SubtitleCue> cues, String hookText) {
+        boolean hasHook = hookText != null && !hookText.isBlank();
         StringBuilder sb = new StringBuilder("""
                 [Script Info]
                 ScriptType: v4.00+
@@ -66,10 +78,23 @@ public final class SubtitleRenderer {
                 [V4+ Styles]
                 Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Outline, Shadow, Alignment, MarginL, MarginR, MarginV
                 Style: Default,Arial,72,&H00FFFFFF,&H00000000,&H80000000,-1,4,0,2,60,60,420
+                """);
+        if (hasHook) {
+            // Alignment 8 = üst-orta; sarı (&H0000D7FF BGR) + kalın kontur
+            sb.append("Style: Hook,Arial,88,&H0000D7FF,&H00000000,&H90000000,"
+                    + "-1,5,0,8,60,60,260\n");
+        }
+        sb.append("""
 
                 [Events]
                 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 """);
+        if (hasHook) {
+            sb.append(String.format(Locale.ROOT,
+                    "Dialogue: 1,%s,%s,Hook,,0,0,0,,%s%n",
+                    assTime(0), assTime(HOOK_SECONDS),
+                    escapeAssText(hookText.toUpperCase(Locale.ROOT))));
+        }
         for (SubtitleCue c : cues) {
             sb.append(String.format(Locale.ROOT, "Dialogue: 0,%s,%s,Default,,0,0,0,,%s%n",
                     assTime(c.getStart()), assTime(c.getEnd()), escapeAssText(c.getText())));
@@ -101,8 +126,13 @@ public final class SubtitleRenderer {
     }
 
     public static File write(List<SubtitleCue> cues, Path out) throws IOException {
+        return write(cues, null, out);
+    }
+
+    public static File write(List<SubtitleCue> cues, String hookText, Path out)
+            throws IOException {
         Files.createDirectories(out.getParent());
-        Files.writeString(out, toAss(cues));
+        Files.writeString(out, toAss(cues, hookText));
         return out.toFile();
     }
 }

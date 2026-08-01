@@ -204,7 +204,8 @@ public class JobPipeline {
                         localized.getNarrations(), tts.alignment());
                 double[] durations = SceneTimer.sceneDurations(ends);
                 List<SubtitleCue> cues = SubtitleRenderer.buildCues(tts.alignment(), 3);
-                File ass = SubtitleRenderer.write(cues, dir.resolve("subs/" + lang + ".ass"));
+                File ass = SubtitleRenderer.write(cues, localized.getHookText(),
+                        dir.resolve("subs/" + lang + ".ass"));
 
                 List<File> images = story.getScenes().stream()
                         .map(s -> dir.resolve(s.getImageFile()).toFile())

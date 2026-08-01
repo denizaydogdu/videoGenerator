@@ -48,6 +48,22 @@ class SubtitleRendererTest {
     }
 
     @Test
+    void hookOverlayRendersTopCenteredForFirstSeconds() {
+        String ass = SubtitleRenderer.toAss(
+                SubtitleRenderer.buildCues(fixture(), 2), "FIVE KIDS. ZERO BODIES.");
+        assertTrue(ass.contains("Style: Hook"), "ayrı Hook stili olmalı");
+        assertTrue(ass.contains("Dialogue: 1,0:00:00.00,0:00:02.20,Hook"),
+                "hook ilk ~2 saniyede ayrı katmanda gösterilmeli:\n" + ass);
+        assertTrue(ass.contains("FIVE KIDS. ZERO BODIES."));
+    }
+
+    @Test
+    void nullHookProducesNoHookEvents() {
+        String ass = SubtitleRenderer.toAss(SubtitleRenderer.buildCues(fixture(), 2), null);
+        assertFalse(ass.contains("Style: Hook"));
+    }
+
+    @Test
     void escapesAssControlCharacters() {
         assertEquals("a/N b (x)", SubtitleRenderer.escapeAssText("a\\N b {x}"));
     }

@@ -36,17 +36,20 @@ public class TranslationService {
                 + "Respond with ONLY valid JSON, no markdown fences.";
         String user = String.format("""
                 Story title: %s
+                On-screen hook text: %s
                 Target language code: %s
                 Rewrite the following numbered narration lines in the target language,
                 keeping the same order, count and dramatic tone. Keep each line the SAME
                 length as the original or SHORTER - never expand (this is spoken audio
-                with a strict time budget). Then produce viral
+                with a strict time budget). Also translate the on-screen hook text
+                ("hookText", keep it 4-7 punchy words). Then produce viral
                 platform metadata (title, description, 3-5 hashtags) in the SAME language.
                 Narrations:
                 %s
                 JSON shape:
-                {"narrations":["..."],"metadata":{"title":"...","description":"...","hashtags":["#..."]}}""",
-                story.getTitle(), lang, numbered);
+                {"narrations":["..."],"hookText":"...",
+                 "metadata":{"title":"...","description":"...","hashtags":["#..."]}}""",
+                story.getTitle(), story.getHookText(), lang, numbered);
 
         String raw = LlmJson.strip(llm.complete(system, user));
         LocalizedStory loc;
@@ -64,6 +67,10 @@ public class TranslationService {
         if (!loc.getMetadata().isValid()) {
             throw new IllegalStateException(
                     "Localization produced invalid metadata for lang=" + lang);
+        }
+        if (loc.getHookText() == null || loc.getHookText().isBlank()) {
+            // Kaynak hikâyedeki hook'a geri düş — overlay boş kalmasın
+            loc.setHookText(story.getHookText());
         }
         logger.info("Localized story to {}: {}", lang, loc.getMetadata().getTitle());
         return loc;

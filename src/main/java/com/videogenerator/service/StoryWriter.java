@@ -24,26 +24,68 @@ public class StoryWriter {
         this.llm = llm;
     }
 
+    /**
+     * Anti-şablon tempo varyantları: YouTube'un 2026 "inauthentic content"
+     * uygulaması kanal içi tekrar eden yapı kalıplarını kümeleyerek tespit
+     * ediyor — her video farklı bir anlatı ritmi talimatı alır.
+     */
+    private static final String[] PACING_VARIANTS = {
+            "short punchy sentences, rapid factual beats",
+            "one slow-burn revelation per scene, measured tone",
+            "question-driven: each scene answers the previous scene's question",
+            "evidence-first: lead each scene with a concrete piece of evidence",
+            "timeline-jumps: alternate between the event and the investigation"
+    };
+
     public Story write(ContentIdea idea, ChannelProfile profile) throws ApiException {
-        String system = "You write scripts for short vertical documentary videos. "
+        String system = "You write scripts for short vertical documentary videos "
+                + "about REAL criminal cases and mysteries. "
                 + "Respond with ONLY valid JSON, no markdown fences.";
         // 2.2 kelime/sn: TTS temposu + ES/TR çevirilerinin ~%15 uzaması payı.
-        // İlk canlı koşuda bütçesiz promptlar hedefi %25-55 aştı (93-116 sn).
         int totalWords = (int) Math.round(profile.getTargetDurationSeconds() * 2.2);
         int wordsPerScene = totalWords / profile.getSceneCount();
+        String pacing = PACING_VARIANTS[
+                new java.util.Random().nextInt(PACING_VARIANTS.length)];
         String user = String.format("""
                 Topic: %s
                 Niche: %s
+
                 Write a gripping %d-second story in English split into EXACTLY %d scenes.
-                HARD LIMIT: total narration across ALL scenes must not exceed %d words
-                (about %d words per scene). Shorter is better than longer.
+
+                FACTUAL RULES (violations are channel-terminating):
+                - The case must be REAL and verifiable: either a court verdict is
+                  finalized, or it has been an officially unsolved cold case for 10+ years.
+                - Never invent cases, people, evidence or "secret" facts. If unsure, pick
+                  a better-documented case.
+                - Use "alleged"/"reportedly" language for anything not established by a
+                  final verdict. Never assert guilt of a named living person.
+                - Include at least ONE primary-source detail (court record, police report
+                  or contemporary press fact).
+
+                HOOK RULES:
+                - Scene 1 narration states the most shocking OUTCOME first.
+                - Never open with a date or scene-setting ("In October 1975..." is banned).
+                - Also produce "hookText": a 4-7 word on-screen text hook.
+
+                LOOP RULE:
+                - The final line must recontextualize the opening line so the video loops
+                  seamlessly into a rewatch.
+
+                Pacing style for THIS video: %s
+
+                HARD LIMIT: total narration must not exceed %d words (about %d words per scene).
                 Each scene: 1-2 spoken sentences ("narration") and one visual description
                 ("imagePrompt") showing PLACES, OBJECTS, DOCUMENTS or SILHOUETTES - never a
-                recognizable human face. JSON shape:
-                {"title": "...", "scenes":[{"narration":"...","imagePrompt":"..."}]}""",
+                recognizable human face and never a real person's likeness.
+                End the last scene on a specific unresolved question that makes viewers
+                want to share and comment a full-sentence theory.
+
+                JSON shape:
+                {"title": "...", "hookText": "...",
+                 "scenes":[{"narration":"...","imagePrompt":"..."}]}""",
                 idea.getTitle(), profile.getNiche().getTopic(),
                 profile.getTargetDurationSeconds(), profile.getSceneCount(),
-                totalWords, wordsPerScene);
+                pacing, totalWords, wordsPerScene);
 
         String raw = LlmJson.strip(llm.complete(system, user));
         Story story;
@@ -57,6 +99,9 @@ public class StoryWriter {
             throw new IllegalStateException("LLM returned "
                     + (story == null || story.getScenes() == null ? 0 : story.getScenes().size())
                     + " scenes, expected " + profile.getSceneCount());
+        }
+        if (story.getHookText() == null || story.getHookText().isBlank()) {
+            throw new IllegalStateException("Story missing hookText (on-screen hook)");
         }
         for (int i = 0; i < story.getScenes().size(); i++) {
             story.getScenes().get(i).setIndex(i + 1);

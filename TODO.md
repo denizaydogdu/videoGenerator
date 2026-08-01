@@ -9,7 +9,7 @@
       *(özel küçük resim, 15dk+ video, Content ID itirazı açılır)*
 - [ ] **Kanal kitlesi:** Studio → Ayarlar → Kanal → Gelişmiş ayarlar →
       Kitle → **"Hayır, çocuklara yönelik değil"**
-- [ ] **Ülke seçimi:** aynı sayfada → İkamet ülkesi *(para kazanma için zorunlu)*
+- [x] **Ülke seçimi: Türkiye** ✅ (2026-08-02)
 - [ ] **Advanced features doğrulaması:** Ayarlar → Kanal → Özellik uygunluğu →
       Gelişmiş özellikler → kimlik/video ile doğrula
       *(Topluluk sekmesini açar; 48 saate kadar sürebilir — erken başlat)*
@@ -35,18 +35,14 @@
 
 ## 4️⃣ FORMAT 2.0 — Claude'un kod işleri (video #3+ için, ~yarım gün)
 
-- [ ] **Hook ters çevirme:** StoryWriter promptu — şok edici sonuçla açıl,
-      tarih/kurulumla değil ("In October 1975..." → "She vanished 40 seconds
-      after this photo was taken")
-- [ ] **İlk karede ekran yazısı:** 4-7 kelimelik hook overlay (sessiz izleyici
-      için; drawtext/ASS ile ilk 2 saniye)
-- [ ] **Süre hedefi 75→60 sn** (profil + kelime bütçesi otomatik uyar)
+- [x] **Hook ters çevirme** ✅ (2026-08-02 — StoryWriter 2.0 promptu)
+- [x] **İlk karede ekran yazısı** ✅ (2026-08-02 — hookText: üretim+çeviri+ASS overlay 2.2sn)
+- [x] **Süre hedefi 75→60 sn** ✅ (2026-08-02 — profiller güncellendi)
 - [ ] **Görsel tempo:** sahne başına 2-3 görsel → her 3-6 sn'de görüntü
       değişimi (maliyet ~$0.96/hikâye olur, değer)
 - [ ] **Karaoke altyazı:** kelime-kelime vurgu, aksan renkli (alignment
       verisi hazır; SubtitleRenderer güncellemesi)
-- [ ] **Loop sonu:** son cümle açılışı yeniden anlamlandırsın (StoryWriter
-      promptu) — tekrar izleme = en güçlü 2026 sinyali
+- [x] **Loop sonu** ✅ (2026-08-02 — StoryWriter LOOP RULE)
 - [ ] **Telifsiz müzik yatağı:** Pixabay/ZapSplat'ten 3-5 karanlık ambient
       mp3 → assets/music/ → rastgele seçilip mikslenir (ElevenLabs beklemeden)
 
@@ -55,14 +51,12 @@
 
 - [ ] **İçerik stratejisi TR-merkezli:** %70 Türk vakası / %30 uluslararası;
       mikro-niş kilidi ("çözülmemiş kayıp/faili meçhul") ilk 15-20 video
-- [ ] **StoryWriter'a TR yasal korkuluklar:** sadece kesinleşmiş/10+ yıl
-      vakalar, "iddiaya göre" dili, gerçek kişi fotoğrafı yok, dipnot
+- [x] **StoryWriter'a yasal korkuluklar** ✅ (2026-08-02 — FACTUAL RULES: gerçek+kesinleşmiş/10yıl, alleged dili, likeness yasağı; dipnot F6'da)
 - [ ] **Başlık şablonu bankası** (dil başına 2-3 kalıp; EN'de arama-sorgusu
       formatı "What happened to X?")
 - [ ] **Seri mekaniği:** Bölüm 1/2 cliffhanger + "Bölüm 2 yazın"
       yorum-kapısı + Dosya #N numaralama
-- [ ] **Anti-slop çeşitlendirme:** yapı/tempo videolar arası değişken
-      (marka imzası sabit) + video başına 1 birincil-kaynak detayı
+- [x] **Anti-slop çeşitlendirme** ✅ (2026-08-02 — 5 tempo varyantı rotasyonu + birincil-kaynak zorunluluğu promptta)
 - [ ] **Video-başı operasyon rutini** (playbook §B: pinned soru, 24h
       swipe-oranı kontrolü, flop=yeni-hook-yeni-video, haftalık arşiv tarama)
 - [ ] TR yayın saatleri scheduler'a: hafta içi 18:00-20:00 TRT
