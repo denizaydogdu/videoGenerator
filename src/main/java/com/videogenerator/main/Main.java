@@ -292,7 +292,8 @@ public class Main {
                         new com.videogenerator.processor.AudioProcessor(),
                         new com.videogenerator.processor.KenBurnsRenderer(ffmpeg)),
                 budgetGuard, costTracker,
-                new com.videogenerator.service.IdeaGenerator(gptClient));
+                new com.videogenerator.service.IdeaGenerator(gptClient),
+                config.getBoolean("music.enabled", true));
 
         com.videogenerator.job.Job job = "resume".equals(command)
                 ? pipeline.resume(target)

@@ -23,6 +23,10 @@ public class DefaultRenderEngine implements JobPipeline.RenderEngine {
     @Override
     public File render(List<File> images, double[] durations, File voiceover,
                        File music, File assFile, Path out) throws Exception {
+        if (music == null) {
+            // Voice-only mode: skip mixing, feed the voiceover directly
+            return kenBurns.render(images, durations, voiceover, assFile, out);
+        }
         // Job-scoped mix name: AudioProcessor writes into the shared temp/
         // dir, so the name must be unique across concurrent jobs.
         String jobId = out.getParent().getParent().getFileName().toString();

@@ -63,12 +63,27 @@ public class JobPipeline {
     private final BudgetGuard budgetGuard;
     private final CostTracker costTracker;
     private final IdeaGenerator ideaGenerator;
+    private final boolean musicEnabled;
 
     public JobPipeline(JobStore jobStore, ChannelStore channelStore, LlmClient llm,
                        ImageGenerator imageGen, MusicGenerator musicGen,
                        TtsEngine ttsEngine, RenderEngine renderEngine,
                        BudgetGuard budgetGuard, CostTracker costTracker,
                        IdeaGenerator ideaGenerator) {
+        this(jobStore, channelStore, llm, imageGen, musicGen, ttsEngine,
+                renderEngine, budgetGuard, costTracker, ideaGenerator, true);
+    }
+
+    /**
+     * @param musicEnabled false = voice-only renders (e.g. ElevenLabs free
+     *                     plan has no Music API access)
+     */
+    public JobPipeline(JobStore jobStore, ChannelStore channelStore, LlmClient llm,
+                       ImageGenerator imageGen, MusicGenerator musicGen,
+                       TtsEngine ttsEngine, RenderEngine renderEngine,
+                       BudgetGuard budgetGuard, CostTracker costTracker,
+                       IdeaGenerator ideaGenerator, boolean musicEnabled) {
+        this.musicEnabled = musicEnabled;
         this.jobStore = jobStore;
         this.channelStore = channelStore;
         this.llm = llm;
@@ -144,15 +159,21 @@ public class JobPipeline {
             jobStore.save(job);
 
             Path musicPath = dir.resolve("audio/music.mp3");
-            if (!Files.exists(musicPath)) {
-                Files.createDirectories(musicPath.getParent());
-                musicGen.generate(
-                        "tense ambient background, instrumental, cinematic, for: "
-                                + story.getTitle(),
-                        profile.getTargetDurationSeconds(), musicPath);
-                job.getCost().setMusic(Constants.COST_MUSIC_TRACK);
+            if (musicEnabled) {
+                if (!Files.exists(musicPath)) {
+                    Files.createDirectories(musicPath.getParent());
+                    musicGen.generate(
+                            "tense ambient background, instrumental, cinematic, for: "
+                                    + story.getTitle(),
+                            profile.getTargetDurationSeconds(), musicPath);
+                    job.getCost().setMusic(Constants.COST_MUSIC_TRACK);
+                }
+                job.setMusicFile("audio/music.mp3");
+            } else {
+                // Voice-only mode (e.g. ElevenLabs free plan has no Music API)
+                logger.info("music.enabled=false — rendering voice-only");
+                job.setMusicFile(null);
             }
-            job.setMusicFile("audio/music.mp3");
             job.setStatus(JobStatus.RENDERING);
             jobStore.save(job);
 
@@ -172,6 +193,7 @@ public class JobPipeline {
                 String text = SceneTimer.joinNarrations(localized.getNarrations());
                 Path audioOut = dir.resolve("audio/" + lang + ".mp3");
                 Path alignOut = dir.resolve("audio/" + lang + ".alignment.json");
+                Files.createDirectories(audioOut.getParent()); // voice-only modda da garanti
                 ElevenLabsClient.TtsResult tts = ttsEngine.speak(
                         text, profile.getVoiceId(), audioOut, alignOut);
                 job.getCost().setTts(job.getCost().getTts()
@@ -189,7 +211,7 @@ public class JobPipeline {
                         .toList();
                 Files.createDirectories(renderOut.getParent());
                 renderEngine.render(images, durations, tts.audioFile(),
-                        musicPath.toFile(), ass, renderOut);
+                        musicEnabled ? musicPath.toFile() : null, ass, renderOut);
 
                 LangVariant variant = new LangVariant();
                 variant.setLang(lang);

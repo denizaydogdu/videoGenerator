@@ -99,6 +99,52 @@ class JobPipelineTest {
     }
 
     @Test
+    void voiceOnlyModeSkipsMusicEntirely(@TempDir Path root) throws Exception {
+        Path channels = channelsDir(root,
+                ChannelStoreTest.VALID.replace("truecrime-en", "ch1")
+                        .replace("\"sceneCount\":6", "\"sceneCount\":3")
+                        .replace("[\"en\",\"es\"]", "[\"en\"]"));
+        LlmClient llm = (sys, user) ->
+                user.contains("Write a gripping") ? StoryWriterTest.LLM_JSON : LOC_JSON;
+        ImageGenerator img = (p, out) -> {
+            try { Files.writeString(out, "png"); } catch (Exception e) { throw new RuntimeException(e); }
+            return out.toFile();
+        };
+        MusicGenerator music = (p, d, out) -> {
+            throw new AssertionError("music must not be called in voice-only mode");
+        };
+        JobPipeline.TtsEngine tts = (text, voice, audioOut, alignOut) -> {
+            try {
+                Files.writeString(audioOut, "mp3");
+                Alignment a = FakeAlignments.forText(text);
+                Files.writeString(alignOut, new com.google.gson.Gson().toJson(a));
+                return new ElevenLabsClient.TtsResult(audioOut.toFile(), a);
+            } catch (Exception e) { throw new RuntimeException(e); }
+        };
+        JobPipeline.RenderEngine render = (images, durations, vo, mus, ass, out) -> {
+            if (mus != null) throw new AssertionError("music file must be null");
+            Files.writeString(out, "mp4");
+            return out.toFile();
+        };
+        IdeaGenerator ideas = mock(IdeaGenerator.class);
+        ContentIdea idea = new ContentIdea();
+        idea.setTitle("Vanished");
+        when(ideas.generateIdeas(any(), anyInt())).thenReturn(List.of(idea));
+        when(ideas.selectBestIdea(any())).thenReturn(idea);
+
+        JobStore jobs = new JobStore(root.resolve("jobs"));
+        CostTracker tracker = new CostTracker(root.resolve("costs"));
+        JobPipeline pipeline = new JobPipeline(jobs, new ChannelStore(channels),
+                llm, img, music, tts, render, new BudgetGuard(tracker, 100.0),
+                tracker, ideas, false); // music disabled
+
+        Job job = pipeline.run("ch1");
+        assertEquals(JobStatus.PENDING_REVIEW, job.getStatus());
+        assertNull(job.getMusicFile());
+        assertEquals(0.0, job.getCost().getMusic(), 1e-9);
+    }
+
+    @Test
     void resumeSkipsCompletedVariantsAndFinishes(@TempDir Path root) throws Exception {
         Path channels = channelsDir(root,
                 ChannelStoreTest.VALID.replace("truecrime-en", "ch1")
