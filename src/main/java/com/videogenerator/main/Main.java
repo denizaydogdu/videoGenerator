@@ -35,6 +35,18 @@ public class Main {
                 runShortsFactory(args[0].toLowerCase(), args[1], config);
                 return;
             }
+            if (args.length >= 2 && "publish".equalsIgnoreCase(args[0])) {
+                try {
+                    var job = buildPublishService(config).publishApproved(args[1]);
+                    System.out.println("Published: " + job.getJobId()
+                            + " -> " + job.getStatus());
+                } catch (Exception e) {
+                    logger.error("Publish failed", e);
+                    System.out.println("ERROR: " + e.getMessage());
+                    System.exit(1);
+                }
+                return;
+            }
             if (args.length >= 1 && "serve".equalsIgnoreCase(args[0])) {
                 runBackoffice(config);
                 return;
@@ -83,6 +95,25 @@ public class Main {
     }
 
     /**
+     * Builds the publish service with the real YouTube publisher.
+     * OAuth happens lazily on first upload per channel.
+     */
+    private static com.videogenerator.publish.PublishService buildPublishService(
+            Configuration config) {
+        var jobStore = new com.videogenerator.job.JobStore(
+                java.nio.file.Path.of(config.getJobsDir()));
+        var channelStore = new com.videogenerator.channel.ChannelStore(
+                java.nio.file.Path.of(config.getChannelsDir()));
+        var youtube = new com.videogenerator.publish.YouTubePublisher(profile -> {
+            var client = new com.videogenerator.api.YouTubeApiClient(
+                    "tokens/" + profile.getChannelId());
+            return client::uploadVideo;
+        });
+        return new com.videogenerator.publish.PublishService(
+                jobStore, channelStore, java.util.Map.of("YOUTUBE", youtube));
+    }
+
+    /**
      * Starts the backoffice review console. Generation requests from the UI
      * run on a single-thread executor (serialized: concurrent runs of the
      * same channel would duplicate spend).
@@ -109,13 +140,28 @@ public class Main {
                         }
                     });
 
+            // Yayın, üretimden AYRI kuyrukta: uzun bir üretim onaylı işi
+            // bekletmesin, yavaş bir upload üretimi bloklamasın
+            var publishExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+            var publishService = buildPublishService(config);
+            com.videogenerator.web.BackofficeServer.JobLauncher publishLauncher = jobId ->
+                    publishExecutor.submit(() -> {
+                        try {
+                            publishService.publishApproved(jobId);
+                        } catch (Exception e) {
+                            // İş PUBLISHING+error olarak kalır; publish <jobId> ile devam
+                            logger.error("Async publish failed for {}", jobId, e);
+                        }
+                    });
+
             var server = new com.videogenerator.web.BackofficeServer(
-                    service, launcher, config.getBackofficePort());
+                    service, launcher, publishLauncher, config.getBackofficePort());
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 server.stop();
                 pipelineExecutor.shutdownNow();
+                publishExecutor.shutdownNow();
             }));
 
             System.out.println("========================================");
@@ -476,6 +522,7 @@ public class Main {
         System.out.println("  generate <channelId> - Shorts factory: story→images→TTS→render (PENDING_REVIEW)");
         System.out.println("  resume <jobId>       - Resume an interrupted/failed shorts-factory job");
         System.out.println("  serve                - Start the backoffice review console (localhost)");
+        System.out.println("  publish <jobId>      - Publish an APPROVED/PUBLISHING job's variants");
         System.out.println("  generate       - Generate video (original pipeline: Music → Video → Upload)");
         System.out.println("  generate-ai    - Generate with FULL AI (Niche → TTS → Viral Ideas → Video)");
         System.out.println("  schedule       - Start automatic daily scheduler (daemon mode)");

@@ -43,7 +43,7 @@ class MediaEndpointTest {
 
         JobService service = new JobService(jobStore, new ChannelStore(channels),
                 new CostTracker(root.resolve("costs")), 100.0);
-        server = new BackofficeServer(service, ch -> { }, 0);
+        server = new BackofficeServer(service, ch -> { }, id -> { }, 0);
         port = server.start();
     }
 

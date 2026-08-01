@@ -39,14 +39,21 @@ public class BackofficeServer {
 
     private final JobService service;
     private final JobLauncher launcher;
+    private final JobLauncher publishLauncher;
     private final int requestedPort;
     private final Gson gson = new Gson();
     private HttpServer httpServer;
     private java.util.concurrent.ExecutorService executor;
 
-    public BackofficeServer(JobService service, JobLauncher launcher, int port) {
+    /**
+     * @param publishLauncher invoked with the jobId after a successful
+     *                        approval; runs publishing asynchronously
+     */
+    public BackofficeServer(JobService service, JobLauncher launcher,
+                            JobLauncher publishLauncher, int port) {
         this.service = service;
         this.launcher = launcher;
+        this.publishLauncher = publishLauncher;
         this.requestedPort = port;
     }
 
@@ -240,6 +247,13 @@ public class BackofficeServer {
             throw new IllegalArgumentException("platforms must be a string array");
         }
         service.approve(jobId, platforms);
+        try {
+            publishLauncher.launch(jobId); // onay başarılıysa async yayın
+        } catch (RuntimeException e) {
+            // Onay kalıcı; yayın kuyruklanamadıysa 'publish <jobId>' ile
+            // elle tetiklenir. 500 dönmek yanlış retry'a yol açar.
+            logger.error("Approved {} but publish enqueue failed", jobId, e);
+        }
         sendNoContent(ex);
     }
 

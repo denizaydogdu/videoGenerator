@@ -33,6 +33,7 @@ class BackofficeServerTest {
     JobStore jobStore;
     int port;
     final List<String> launched = new ArrayList<>();
+    final List<String> publishRequested = new ArrayList<>();
     final HttpClient client = HttpClient.newHttpClient();
 
     @BeforeEach
@@ -44,7 +45,7 @@ class BackofficeServerTest {
         jobStore = new JobStore(root.resolve("jobs"));
         JobService service = new JobService(jobStore, new ChannelStore(channels),
                 new CostTracker(root.resolve("costs")), 100.0);
-        server = new BackofficeServer(service, launched::add, 0);
+        server = new BackofficeServer(service, launched::add, publishRequested::add, 0);
         port = server.start();
     }
 
@@ -99,8 +100,11 @@ class BackofficeServerTest {
         String url = "/api/jobs/" + job.getJobId() + "/approve";
 
         assertEquals(400, send("POST", url, "{\"platforms\":[]}").statusCode());
+        assertTrue(publishRequested.isEmpty());
         assertEquals(204, send("POST", url, "{\"platforms\":[\"YOUTUBE\"]}").statusCode());
+        assertEquals(List.of(job.getJobId()), publishRequested); // onay yayını tetikler
         assertEquals(409, send("POST", url, "{\"platforms\":[\"YOUTUBE\"]}").statusCode());
+        assertEquals(1, publishRequested.size()); // başarısız onay tetiklemez
     }
 
     @Test
