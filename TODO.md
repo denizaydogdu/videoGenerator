@@ -50,6 +50,23 @@
 - [ ] **Telifsiz müzik yatağı:** Pixabay/ZapSplat'ten 3-5 karanlık ambient
       mp3 → assets/music/ → rastgele seçilip mikslenir (ElevenLabs beklemeden)
 
+## 4️⃣b BÜYÜME PLAYBOOK ENTEGRASYONU — 5-ajan araştırmasından
+> Detay: `thoughts/research/2026-08-02-buyume-playbook.md`
+
+- [ ] **İçerik stratejisi TR-merkezli:** %70 Türk vakası / %30 uluslararası;
+      mikro-niş kilidi ("çözülmemiş kayıp/faili meçhul") ilk 15-20 video
+- [ ] **StoryWriter'a TR yasal korkuluklar:** sadece kesinleşmiş/10+ yıl
+      vakalar, "iddiaya göre" dili, gerçek kişi fotoğrafı yok, dipnot
+- [ ] **Başlık şablonu bankası** (dil başına 2-3 kalıp; EN'de arama-sorgusu
+      formatı "What happened to X?")
+- [ ] **Seri mekaniği:** Bölüm 1/2 cliffhanger + "Bölüm 2 yazın"
+      yorum-kapısı + Dosya #N numaralama
+- [ ] **Anti-slop çeşitlendirme:** yapı/tempo videolar arası değişken
+      (marka imzası sabit) + video başına 1 birincil-kaynak detayı
+- [ ] **Video-başı operasyon rutini** (playbook §B: pinned soru, 24h
+      swipe-oranı kontrolü, flop=yeni-hook-yeni-video, haftalık arşiv tarama)
+- [ ] TR yayın saatleri scheduler'a: hafta içi 18:00-20:00 TRT
+
 ## 5️⃣ OPERASYON — Ritim kurulumu
 
 - [ ] **`schedule` daemon'u başlat** — günde 1 üretim, sabit saat
