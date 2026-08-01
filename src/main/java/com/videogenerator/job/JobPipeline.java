@@ -202,14 +202,29 @@ public class JobPipeline {
 
                 double[] ends = SceneTimer.sceneEndTimes(
                         localized.getNarrations(), tts.alignment());
-                double[] durations = SceneTimer.sceneDurations(ends);
+                double[] sceneDurations = SceneTimer.sceneDurations(ends);
                 List<SubtitleCue> cues = SubtitleRenderer.buildCues(tts.alignment(), 3);
                 File ass = SubtitleRenderer.write(cues, localized.getHookText(),
                         dir.resolve("subs/" + lang + ".ass"));
 
-                List<File> images = story.getScenes().stream()
-                        .map(s -> dir.resolve(s.getImageFile()).toFile())
-                        .toList();
+                // F2: sahne süresi o sahnenin görselleri arasında eşit bölünür
+                // → her 3-6 saniyede görüntü değişimi (tutma sinyali)
+                List<File> images = new ArrayList<>();
+                List<Double> perImage = new ArrayList<>();
+                for (int s = 0; s < story.getScenes().size(); s++) {
+                    List<String> sceneFiles = story.getScenes().get(s).getImageFiles();
+                    for (String f : sceneFiles) {
+                        images.add(dir.resolve(f).toFile());
+                        perImage.add(sceneDurations[s] / sceneFiles.size());
+                    }
+                }
+                double[] durations = perImage.stream()
+                        .mapToDouble(Double::doubleValue).toArray();
+                if (images.isEmpty()) {
+                    throw new IllegalStateException(
+                            "No scene images resolved for render (job "
+                                    + job.getJobId() + ")");
+                }
                 Files.createDirectories(renderOut.getParent());
                 renderEngine.render(images, durations, tts.audioFile(),
                         musicEnabled ? musicPath.toFile() : null, ass, renderOut);

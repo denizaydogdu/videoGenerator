@@ -33,15 +33,22 @@ public class SceneImageService {
         Files.createDirectories(scenesDir);
         double cost = 0;
         for (StoryScene scene : story.getScenes()) {
-            String name = String.format("%02d.png", scene.getIndex());
-            Path out = scenesDir.resolve(name);
-            scene.setImageFile("scenes/" + name);
-            if (Files.exists(out)) {
-                logger.info("Skip existing scene image {}", name);
-                continue;
+            java.util.List<String> prompts = scene.effectivePrompts();
+            java.util.List<String> files = new java.util.ArrayList<>();
+            for (int i = 0; i < prompts.size(); i++) {
+                // 01a.png, 01b.png ... — tek görsel legacy'de 01a olur
+                String name = String.format("%02d%c.png",
+                        scene.getIndex(), (char) ('a' + i));
+                Path out = scenesDir.resolve(name);
+                files.add("scenes/" + name);
+                if (Files.exists(out)) {
+                    logger.info("Skip existing scene image {}", name);
+                    continue;
+                }
+                generator.generate(story.getStylePrefix() + ", " + prompts.get(i), out);
+                cost += Constants.COST_IMAGE_MEDIUM;
             }
-            generator.generate(story.getStylePrefix() + ", " + scene.getImagePrompt(), out);
-            cost += Constants.COST_IMAGE_MEDIUM;
+            scene.setImageFiles(files);
         }
         return cost;
     }

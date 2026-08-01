@@ -22,6 +22,15 @@ class KenBurnsFilterTest {
     }
 
     @Test
+    void shortDurationsScaleXfadeDownNoNegativeOffsets() {
+        // F2 sahne bölüşümü ile 0.8 sn'lik görseller mümkün — offset asla negatif olmamalı
+        String g = KenBurnsRenderer.buildFilterGraph(
+                new double[]{0.8, 0.8, 0.8}, "s.ass", 30);
+        assertFalse(g.contains("offset=-"), "negatif xfade offset üretilmemeli:\n" + g);
+        assertTrue(g.contains("duration=0.3"), "xfade kısa görsele ölçeklenmeli (0.8*0.4)");
+    }
+
+    @Test
     void totalChainLengthMatchesAudioLength() {
         // 3 sahne: zincir sonu = toplam anlatım süresi olmalı (ses kesilmez)
         double[] durations = {3.0, 4.0, 2.5};

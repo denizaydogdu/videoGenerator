@@ -90,7 +90,7 @@ class JobPipelineTest {
         assertEquals(JobStatus.PENDING_REVIEW, job.getStatus());
         assertEquals(1, job.getVariants().size());
         assertTrue(Files.exists(jobs.dirFor(job.getJobId()).resolve("renders/en.mp4")));
-        assertTrue(Files.exists(jobs.dirFor(job.getJobId()).resolve("scenes/01.png")));
+        assertTrue(Files.exists(jobs.dirFor(job.getJobId()).resolve("scenes/01a.png")));
         assertTrue(Files.exists(jobs.dirFor(job.getJobId()).resolve("subs/en.ass")));
         assertTrue(job.getCost().total() > 0);
         assertEquals(job.getCost().total(), tracker.spentThisMonth(), 1e-9);

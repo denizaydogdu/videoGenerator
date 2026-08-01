@@ -40,9 +40,13 @@ public class KenBurnsRenderer {
      */
     static String buildFilterGraph(double[] durations, String assPath, int fps) {
         int n = durations.length;
+        // F2 kısa görsel koruması: xfade, en kısa görselin %40'ını aşamaz —
+        // aksi halde offset negatife düşüp filtre grafını bozar
+        double minDur = java.util.Arrays.stream(durations).min().orElse(XFADE_SECONDS);
+        double xfade = Math.min(XFADE_SECONDS, Math.max(0.1, minDur * 0.4));
         long[] frames = new long[n];
         for (int i = 0; i < n; i++) {
-            double stretched = durations[i] + (i > 0 ? XFADE_SECONDS : 0);
+            double stretched = durations[i] + (i > 0 ? xfade : 0);
             frames[i] = Math.round(stretched * fps);
         }
         StringBuilder g = new StringBuilder();
@@ -58,11 +62,11 @@ public class KenBurnsRenderer {
         String prev = "[v0]";
         double chainEnd = (double) frames[0] / fps; // frame-quantized
         for (int i = 1; i < n; i++) {
-            double offset = chainEnd - XFADE_SECONDS;
+            double offset = chainEnd - xfade;
             String outLabel = "[x" + i + "]";
             g.append(String.format(Locale.ROOT,
                     "%s[v%d]xfade=transition=fade:duration=%.1f:offset=%.3f%s;",
-                    prev, i, XFADE_SECONDS, offset, outLabel));
+                    prev, i, xfade, offset, outLabel));
             chainEnd = offset + (double) frames[i] / fps;
             prev = outLabel;
         }

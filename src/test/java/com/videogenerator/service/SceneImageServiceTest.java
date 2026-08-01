@@ -29,7 +29,7 @@ class SceneImageServiceTest {
     @Test
     void prependsStyleSkipsExistingAndTracksCost(@TempDir Path dir) throws Exception {
         Files.createDirectories(dir);
-        Files.writeString(dir.resolve("01.png"), "already-here"); // sahne 1 mevcut
+        Files.writeString(dir.resolve("01a.png"), "already-here"); // sahne 1 mevcut
         List<String> prompts = new ArrayList<>();
         ImageGenerator fake = (prompt, out) -> {
             prompts.add(prompt);
@@ -45,7 +45,7 @@ class SceneImageServiceTest {
 
         assertEquals(2, prompts.size()); // 1 atlandı
         assertTrue(prompts.get(0).startsWith("film grain, no faces, "));
-        assertEquals("scenes/02.png", story.getScenes().get(1).getImageFile());
+        assertEquals(List.of("scenes/02a.png"), story.getScenes().get(1).getImageFiles());
         assertEquals(2 * Constants.COST_IMAGE_MEDIUM, cost, 1e-9);
     }
 }

@@ -74,15 +74,16 @@ public class StoryWriter {
                 Pacing style for THIS video: %s
 
                 HARD LIMIT: total narration must not exceed %d words (about %d words per scene).
-                Each scene: 1-2 spoken sentences ("narration") and one visual description
-                ("imagePrompt") showing PLACES, OBJECTS, DOCUMENTS or SILHOUETTES - never a
-                recognizable human face and never a real person's likeness.
+                Each scene: 1-2 spoken sentences ("narration") and TWO visual descriptions
+                ("imagePrompts", different angles/subjects of the same beat) showing PLACES,
+                OBJECTS, DOCUMENTS or SILHOUETTES - never a recognizable human face and
+                never a real person's likeness.
                 End the last scene on a specific unresolved question that makes viewers
                 want to share and comment a full-sentence theory.
 
                 JSON shape:
                 {"title": "...", "hookText": "...",
-                 "scenes":[{"narration":"...","imagePrompt":"..."}]}""",
+                 "scenes":[{"narration":"...","imagePrompts":["...","..."]}]}""",
                 idea.getTitle(), profile.getNiche().getTopic(),
                 profile.getTargetDurationSeconds(), profile.getSceneCount(),
                 pacing, totalWords, wordsPerScene);
@@ -102,6 +103,12 @@ public class StoryWriter {
         }
         if (story.getHookText() == null || story.getHookText().isBlank()) {
             throw new IllegalStateException("Story missing hookText (on-screen hook)");
+        }
+        for (int i = 0; i < story.getScenes().size(); i++) {
+            if (story.getScenes().get(i).effectivePrompts().isEmpty()) {
+                throw new IllegalStateException(
+                        "Scene " + (i + 1) + " has no image prompts");
+            }
         }
         for (int i = 0; i < story.getScenes().size(); i++) {
             story.getScenes().get(i).setIndex(i + 1);
