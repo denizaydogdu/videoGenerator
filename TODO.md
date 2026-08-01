@@ -78,13 +78,17 @@
 - [ ] `notifySubscribers` config anahtarı
 - [ ] job.json'larından SQLite'a analitik beslemesi (hangi niş tutuyor)
 
-## 7️⃣ İLERİSİ — Büyüme (bu hafta değil)
+## 7️⃣ İLERİSİ — Büyüme (YPP SONRASI — karar 2026-08-02)
 
-- [ ] **Evidence Lab (2. kanal)** aktivasyonu — profil hazır
-      (`channels/forensic-lab-en.json`, enabled:false) + 44 fikir tohumu
-      (`thoughts/ideas/`) · YouTube kanalı + OAuth gerekir
-- [ ] **Dil-başına-kanal kararı** — 1 haftalık izlenme verisiyle
-      (TR baskınsa: Unsolved Files→TR, EN/ES'e ayrı kanallar)
+> **STRATEJİ KARARI (Deniz):** YPP eşikleri kanal başına → tek kanala
+> konsantrasyon. Portföy ARDIŞIK işler: kanal 1 para kazanınca kanal 2.
+> Dil-başına-kanal fikri İPTAL (abone havuzunu böler) — yerine
+> multi-audio track araştırması öncelikli.
+
+- [ ] **Evidence Lab (2. kanal)** — YPP SONRASINA park edildi; profil +
+      44 fikir tohumu hazır bekliyor
+- [ ] **Multi-audio track POC** (öncelik yükseldi): tek video + 3 ses
+      kanalı = tek abone havuzu + temiz dil hedeflemesi
 - [ ] **TikTok/Meta API başvuruları** (onay haftalar sürüyor — erken başvur)
 - [ ] OAuth kalıcılığı: Cloud Console → "Publish app" *(yoksa 7 günde bir
       yeniden izin — ilk hatırlatıcı: ~8 Ağustos)*
