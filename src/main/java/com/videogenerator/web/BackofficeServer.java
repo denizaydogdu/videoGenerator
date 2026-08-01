@@ -115,11 +115,23 @@ public class BackofficeServer {
                     }
                 }
                 case 6 -> {
-                    if ("jobs".equals(seg[2]) && "variants".equals(seg[4])
-                            && "PATCH".equals(method)) {
-                        patchMetadata(ex, seg[3], seg[5]);
-                    } else {
+                    if (!"jobs".equals(seg[2])) {
                         sendError(ex, 404, "Unknown resource");
+                        return;
+                    }
+                    switch (seg[4]) {
+                        case "render" -> requireGet(ex, method,
+                                () -> serveRender(ex, seg[3], seg[5]));
+                        case "scene" -> requireGet(ex, method,
+                                () -> serveScene(ex, seg[3], seg[5]));
+                        case "variants" -> {
+                            if ("PATCH".equals(method)) {
+                                patchMetadata(ex, seg[3], seg[5]);
+                            } else {
+                                sendError(ex, 405, "Method not allowed");
+                            }
+                        }
+                        default -> sendError(ex, 404, "Unknown resource");
                     }
                 }
                 default -> sendError(ex, 404, "Unknown resource");
@@ -243,6 +255,84 @@ public class BackofficeServer {
         }
         service.updateMetadata(jobId, lang, metadata);
         sendNoContent(ex);
+    }
+
+    // ==================== media ====================
+
+    private static final java.util.regex.Pattern LANG = java.util.regex.Pattern.compile("[a-z]{2,3}");
+
+    private void serveRender(HttpExchange ex, String jobId, String lang) throws IOException {
+        if (!LANG.matcher(lang).matches()) {
+            throw new IllegalArgumentException("Invalid language segment");
+        }
+        java.nio.file.Path file = service.jobs().dirFor(jobId)
+                .resolve("renders/" + lang + ".mp4");
+        if (!java.nio.file.Files.exists(file)) {
+            sendError(ex, 404, "Render not found");
+            return;
+        }
+        long length = java.nio.file.Files.size(file);
+        String rangeHeader = ex.getRequestHeaders().getFirst("Range");
+        ex.getResponseHeaders().set("Content-Type", "video/mp4");
+        ex.getResponseHeaders().set("Accept-Ranges", "bytes");
+
+        if (rangeHeader == null) {
+            ex.sendResponseHeaders(200, length);
+            try (OutputStream os = ex.getResponseBody();
+                 var in = java.nio.file.Files.newInputStream(file)) {
+                in.transferTo(os);
+            }
+            return;
+        }
+        RangeSupport.ByteRange range = RangeSupport.parse(rangeHeader, length);
+        if (range == null) {
+            ex.getResponseHeaders().set("Content-Range", "bytes */" + length);
+            ex.sendResponseHeaders(416, -1);
+            return;
+        }
+        ex.getResponseHeaders().set("Content-Range",
+                "bytes " + range.start() + "-" + range.end() + "/" + length);
+        ex.sendResponseHeaders(206, range.length());
+        try (OutputStream os = ex.getResponseBody();
+             var raf = java.nio.channels.FileChannel.open(file)) {
+            raf.position(range.start());
+            long remaining = range.length();
+            java.nio.ByteBuffer buf = java.nio.ByteBuffer.allocate(64 * 1024);
+            while (remaining > 0) {
+                buf.clear();
+                buf.limit((int) Math.min(buf.capacity(), remaining));
+                int read = raf.read(buf);
+                if (read < 0) {
+                    break;
+                }
+                os.write(buf.array(), 0, read);
+                remaining -= read;
+            }
+        }
+    }
+
+    private void serveScene(HttpExchange ex, String jobId, String sceneNo) throws IOException {
+        int n;
+        try {
+            n = Integer.parseInt(sceneNo);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Scene number must be an integer");
+        }
+        if (n < 1 || n > 99) {
+            throw new IllegalArgumentException("Scene number out of range");
+        }
+        java.nio.file.Path file = service.jobs().dirFor(jobId)
+                .resolve(String.format("scenes/%02d.png", n));
+        if (!java.nio.file.Files.exists(file)) {
+            sendError(ex, 404, "Scene not found");
+            return;
+        }
+        byte[] bytes = java.nio.file.Files.readAllBytes(file);
+        ex.getResponseHeaders().set("Content-Type", "image/png");
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
+        }
     }
 
     // ==================== static (Task B5 fills web/) ====================
