@@ -70,6 +70,12 @@ public class Constants {
     // Logging
     public static final String LOG_PATTERN = "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n";
 
+    // Estimated API costs (USD) for budget guard estimates
+    public static final double COST_IMAGE_MEDIUM = 0.08;
+    public static final double COST_TTS_PER_1K_CHARS = 0.10;
+    public static final double COST_MUSIC_TRACK = 0.50;
+    public static final double COST_LLM_CALL = 0.01;
+
     private Constants() {
         // Utility class
     }
