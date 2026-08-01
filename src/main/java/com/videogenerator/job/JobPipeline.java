@@ -203,9 +203,9 @@ public class JobPipeline {
                 double[] ends = SceneTimer.sceneEndTimes(
                         localized.getNarrations(), tts.alignment());
                 double[] sceneDurations = SceneTimer.sceneDurations(ends);
-                List<SubtitleCue> cues = SubtitleRenderer.buildCues(tts.alignment(), 3);
-                File ass = SubtitleRenderer.write(cues, localized.getHookText(),
-                        dir.resolve("subs/" + lang + ".ass"));
+                // F3: karaoke stil — kelime-kelime sarı vurgu
+                File ass = SubtitleRenderer.writeKaraoke(tts.alignment(), 3,
+                        localized.getHookText(), dir.resolve("subs/" + lang + ".ass"));
 
                 // F2: sahne süresi o sahnenin görselleri arasında eşit bölünür
                 // → her 3-6 saniyede görüntü değişimi (tutma sinyali)

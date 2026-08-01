@@ -125,8 +125,112 @@ public final class SubtitleRenderer {
                 .replace("{", "(").replace("}", ")");
     }
 
+    /** Kelime sınırları: karaoke için karakter aralıklarından çıkarılır. */
+    private record Word(int startIdx, int endIdx, String text) {
+    }
+
+    private static List<Word> extractWords(Alignment a) {
+        List<Word> words = new ArrayList<>();
+        int wordStart = -1;
+        for (int i = 0; i < a.length(); i++) {
+            boolean space = a.getCharacters().get(i).isBlank();
+            if (!space && wordStart < 0) {
+                wordStart = i;
+            }
+            if ((space || i == a.length() - 1) && wordStart >= 0) {
+                int endIdx = space ? i - 1 : i;
+                StringBuilder t = new StringBuilder();
+                for (int c = wordStart; c <= endIdx; c++) {
+                    t.append(a.getCharacters().get(c));
+                }
+                words.add(new Word(wordStart, endIdx, t.toString()));
+                wordStart = -1;
+            }
+        }
+        return words;
+    }
+
+    /**
+     * F3 karaoke: kelime başına bir Dialogue — grup metni sabit görünür,
+     * yalnız aktif kelime aksan renginde (sarı). 2026'nın baskın altyazı
+     * stili; statik gruplara göre ilk-5-sn tutmada belirgin fark ölçülmüş.
+     * Event, sonraki kelimenin başlangıcına kadar sürer (boşlukta metin
+     * kaybolmaz); grubun son kelimesi kendi bitişinde kapanır.
+     */
+    public static String toKaraokeAss(Alignment a, int maxWordsPerGroup, String hookText) {
+        List<Word> words = extractWords(a);
+        StringBuilder events = new StringBuilder();
+        for (int g = 0; g < words.size(); g += maxWordsPerGroup) {
+            int last = Math.min(g + maxWordsPerGroup, words.size()) - 1;
+            for (int w = g; w <= last; w++) {
+                double start = a.getCharacterStartTimesSeconds().get(words.get(w).startIdx());
+                double end = (w < last)
+                        ? a.getCharacterStartTimesSeconds().get(words.get(w + 1).startIdx())
+                        : a.getCharacterEndTimesSeconds().get(words.get(w).endIdx());
+                StringBuilder text = new StringBuilder();
+                for (int k = g; k <= last; k++) {
+                    if (k > g) {
+                        text.append(' ');
+                    }
+                    String wordText = escapeAssText(words.get(k).text());
+                    if (k == w) {
+                        // Aktif kelime: sarı (BGR &H00D7FF = gold)
+                        text.append("{\\1c&H00D7FF&}").append(wordText)
+                                .append("{\\1c&HFFFFFF&}");
+                    } else {
+                        text.append(wordText);
+                    }
+                }
+                events.append(String.format(Locale.ROOT,
+                        "Dialogue: 0,%s,%s,Default,,0,0,0,,%s%n",
+                        assTime(start), assTime(end), text));
+            }
+        }
+        return assDocument(hookText, events.toString());
+    }
+
+    /** Ortak ASS iskeleti: stiller + hook + verilen event satırları. */
+    private static String assDocument(String hookText, String eventLines) {
+        boolean hasHook = hookText != null && !hookText.isBlank();
+        StringBuilder sb = new StringBuilder("""
+                [Script Info]
+                ScriptType: v4.00+
+                PlayResX: 1080
+                PlayResY: 1920
+
+                [V4+ Styles]
+                Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Outline, Shadow, Alignment, MarginL, MarginR, MarginV
+                Style: Default,Arial,72,&H00FFFFFF,&H00000000,&H80000000,-1,4,0,2,60,60,420
+                """);
+        if (hasHook) {
+            sb.append("Style: Hook,Arial,88,&H0000D7FF,&H00000000,&H90000000,"
+                    + "-1,5,0,8,60,60,260\n");
+        }
+        sb.append("""
+
+                [Events]
+                Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+                """);
+        if (hasHook) {
+            sb.append(String.format(Locale.ROOT,
+                    "Dialogue: 1,%s,%s,Hook,,0,0,0,,%s%n",
+                    assTime(0), assTime(HOOK_SECONDS),
+                    escapeAssText(hookText.toUpperCase(Locale.ROOT))));
+        }
+        sb.append(eventLines);
+        return sb.toString();
+    }
+
     public static File write(List<SubtitleCue> cues, Path out) throws IOException {
         return write(cues, null, out);
+    }
+
+    /** F3: pipeline'ın kullandığı karaoke yazıcı. */
+    public static File writeKaraoke(Alignment a, int maxWordsPerGroup, String hookText,
+                                    Path out) throws IOException {
+        Files.createDirectories(out.getParent());
+        Files.writeString(out, toKaraokeAss(a, maxWordsPerGroup, hookText));
+        return out.toFile();
     }
 
     public static File write(List<SubtitleCue> cues, String hookText, Path out)

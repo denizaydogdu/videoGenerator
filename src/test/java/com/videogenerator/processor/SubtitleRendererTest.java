@@ -48,6 +48,27 @@ class SubtitleRendererTest {
     }
 
     @Test
+    void karaokeEmitsPerWordEventsWithAccentHighlight() {
+        // "Hi. Bye." → 2 kelime → kelime başına 1 Dialogue; aktif kelime sarı.
+        // Tasarım: event, SONRAKİ kelimenin başlangıcına kadar sürer (metin
+        // aradaki boşlukta kaybolmaz); son kelime kendi bitişinde biter.
+        String ass = SubtitleRenderer.toKaraokeAss(fixture(), 3, null);
+        long dialogues = ass.lines().filter(l -> l.startsWith("Dialogue: 0,")).count();
+        assertEquals(2, dialogues, "kelime başına bir event olmalı:\n" + ass);
+        assertTrue(ass.contains("Dialogue: 0,0:00:00.00,0:00:00.30,Default"), ass);
+        assertTrue(ass.contains("{\\1c&H00D7FF&}Hi.{\\1c&HFFFFFF&} Bye."), ass);
+        assertTrue(ass.contains("Dialogue: 0,0:00:00.30,0:00:00.80,Default"), ass);
+        assertTrue(ass.contains("Hi. {\\1c&H00D7FF&}Bye.{\\1c&HFFFFFF&}"), ass);
+    }
+
+    @Test
+    void karaokeKeepsHookOverlay() {
+        String ass = SubtitleRenderer.toKaraokeAss(fixture(), 3, "ZERO BODIES FOUND");
+        assertTrue(ass.contains("Style: Hook"));
+        assertTrue(ass.contains("ZERO BODIES FOUND"));
+    }
+
+    @Test
     void hookOverlayRendersTopCenteredForFirstSeconds() {
         String ass = SubtitleRenderer.toAss(
                 SubtitleRenderer.buildCues(fixture(), 2), "FIVE KIDS. ZERO BODIES.");
