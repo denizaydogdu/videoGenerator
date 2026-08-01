@@ -25,6 +25,7 @@ public class Job {
     private CostBreakdown cost;
     private String error;
     private boolean costRecorded; // guards CostTracker against double-add on resume
+    private List<String> approvedPlatforms; // set at approval; consumed by publishers (Plan 3)
 
     public static Job create(String channelId) {
         Job job = new Job();
@@ -89,6 +90,14 @@ public class Job {
 
     public CostBreakdown getCost() {
         return cost;
+    }
+
+    public List<String> getApprovedPlatforms() {
+        return approvedPlatforms;
+    }
+
+    public void setApprovedPlatforms(List<String> approvedPlatforms) {
+        this.approvedPlatforms = approvedPlatforms;
     }
 
     public boolean isCostRecorded() {
