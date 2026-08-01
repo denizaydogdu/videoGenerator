@@ -1,0 +1,16 @@
+{
+  "channelId": "truecrime-en",
+  "displayName": "Unsolved Files",
+  "niche": {
+    "topic": "unsolved crime and mysteries",
+    "keywords": ["cold case", "mystery", "true crime", "disappearance"]
+  },
+  "stylePrefix": "1970s film grain, desaturated colors, cinematic lighting, documentary photography, no human faces",
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "languages": ["en", "es", "tr"],
+  "platforms": ["YOUTUBE"],
+  "targetDurationSeconds": 75,
+  "sceneCount": 6,
+  "youtubeTokenFile": "config/tokens/truecrime-en.json",
+  "enabled": true
+}

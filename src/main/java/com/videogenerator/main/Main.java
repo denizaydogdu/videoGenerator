@@ -28,6 +28,14 @@ public class Main {
             Configuration config = Configuration.getInstance();
             logger.info("Configuration loaded successfully");
 
+            // Shorts-factory commands run WITHOUT the legacy service stack
+            // (no Suno/Sora validation): generate <channelId> | resume <jobId>
+            if (args.length >= 2 && ("generate".equalsIgnoreCase(args[0])
+                    || "resume".equalsIgnoreCase(args[0]))) {
+                runShortsFactory(args[0].toLowerCase(), args[1], config);
+                return;
+            }
+
             // Validate configuration
             try {
                 config.validate();
@@ -66,6 +74,60 @@ public class Main {
 
         } catch (Exception e) {
             logger.error("Fatal error", e);
+            System.exit(1);
+        }
+    }
+
+    /**
+     * Builds the shorts-factory pipeline with real clients and runs one job.
+     */
+    private static void runShortsFactory(String command, String target, Configuration config) {
+        try {
+            var gptClient = new com.videogenerator.api.OpenAiGptClient();
+            var elevenLabs = new com.videogenerator.api.ElevenLabsClient();
+            var ffmpeg = new com.videogenerator.processor.FFmpegWrapper();
+
+            var jobStore = new com.videogenerator.job.JobStore(
+                    java.nio.file.Path.of(config.getJobsDir()));
+            var channelStore = new com.videogenerator.channel.ChannelStore(
+                    java.nio.file.Path.of(config.getChannelsDir()));
+            var costTracker = new com.videogenerator.job.CostTracker(
+                    java.nio.file.Path.of(config.getCostsDir()));
+            var budgetGuard = new com.videogenerator.job.BudgetGuard(
+                    costTracker, config.getMonthlyBudgetUsd());
+
+            com.videogenerator.job.JobPipeline.TtsEngine ttsEngine =
+                    (text, voiceId, audioOut, alignOut) -> {
+                        var voice = new com.videogenerator.model.VoiceConfig();
+                        voice.setVoiceId(voiceId);
+                        voice.setModel(config.getTtsModel());
+                        return elevenLabs.generateWithTimestamps(text, voice, audioOut, alignOut);
+                    };
+
+            var pipeline = new com.videogenerator.job.JobPipeline(
+                    jobStore, channelStore, gptClient,
+                    new com.videogenerator.api.ImageApiClient(),
+                    new com.videogenerator.api.MusicApiClient(),
+                    ttsEngine,
+                    new com.videogenerator.job.DefaultRenderEngine(
+                            new com.videogenerator.processor.AudioProcessor(),
+                            new com.videogenerator.processor.KenBurnsRenderer(ffmpeg)),
+                    budgetGuard, costTracker,
+                    new com.videogenerator.service.IdeaGenerator(gptClient));
+
+            com.videogenerator.job.Job job = "resume".equals(command)
+                    ? pipeline.resume(target)
+                    : pipeline.run(target);
+
+            System.out.println("========================================");
+            System.out.println("Job " + job.getJobId() + " -> " + job.getStatus());
+            System.out.println("Variants: " + job.getVariants().size()
+                    + "  Cost: $" + String.format("%.2f", job.getCost().total()));
+            System.out.println("Review dir: " + jobStore.dirFor(job.getJobId()));
+            System.out.println("========================================");
+        } catch (Exception e) {
+            logger.error("Shorts factory {} failed", command, e);
+            System.out.println("ERROR: " + e.getMessage());
             System.exit(1);
         }
     }
@@ -346,6 +408,8 @@ public class Main {
         System.out.println("\nYouTube Shorts Auto Generator v1.0.0");
         System.out.println("Usage: java -jar youtube-shorts-generator.jar [command]");
         System.out.println("\nCommands:");
+        System.out.println("  generate <channelId> - Shorts factory: story→images→TTS→render (PENDING_REVIEW)");
+        System.out.println("  resume <jobId>       - Resume an interrupted/failed shorts-factory job");
         System.out.println("  generate       - Generate video (original pipeline: Music → Video → Upload)");
         System.out.println("  generate-ai    - Generate with FULL AI (Niche → TTS → Viral Ideas → Video)");
         System.out.println("  schedule       - Start automatic daily scheduler (daemon mode)");

@@ -44,3 +44,7 @@ config/video_history.json
 
 # Test
 *.log
+
+# Channel profiles contain per-channel token paths; keep only examples
+channels/*.json
+!channels/*.json.example
