@@ -221,6 +221,16 @@ public class FFmpegWrapper {
     /**
      * Validates that FFmpeg is installed and accessible
      */
+    /** Checks the configured ffprobe binary (duration probing depends on it). */
+    public boolean validateFfprobeInstallation() {
+        try {
+            Process process = new ProcessBuilder(ffprobePath, "-version").start();
+            return process.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public boolean validateFFmpegInstallation() {
         try {
             List<String> command = new ArrayList<>();

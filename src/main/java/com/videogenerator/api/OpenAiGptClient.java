@@ -8,7 +8,6 @@ import com.videogenerator.model.ApiProvider;
 import com.videogenerator.model.ContentIdea;
 import com.videogenerator.model.NicheData;
 import com.videogenerator.model.VideoMetadata;
-import com.videogenerator.model.VoiceoverScript;
 import com.videogenerator.util.ApiException;
 import com.videogenerator.util.Constants;
 import com.videogenerator.util.HttpUtil;

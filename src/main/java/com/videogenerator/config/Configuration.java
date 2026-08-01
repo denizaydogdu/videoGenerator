@@ -103,9 +103,6 @@ public class Configuration {
     }
 
     // API Keys
-    public String getSunoApiKey() {
-        return get("suno.api.key");
-    }
 
     public String getOpenAiApiKey() {
         return get("openai.api.key");
@@ -158,7 +155,7 @@ public class Configuration {
     }
 
     public int getMaxVideoDuration() {
-        return getInt("video.max.duration", 59);
+        return getInt("video.max.duration", 180);
     }
 
     // FFmpeg Paths
@@ -210,9 +207,6 @@ public class Configuration {
     }
 
     // API Limits
-    public int getSunoDailyLimit() {
-        return getInt("api.suno.daily.limit", 50);
-    }
 
     public int getYouTubeDailyLimit() {
         return getInt("api.youtube.daily.limit", 6);
@@ -244,13 +238,7 @@ public class Configuration {
         return getInt("http.read.timeout.seconds", 60);
     }
 
-    public int getSunoPollingInterval() {
-        return getInt("suno.polling.interval.ms", 5000);
-    }
 
-    public int getSunoMaxWaitTime() {
-        return getInt("suno.max.wait.time.ms", 300000);
-    }
 
     // Niche Finder Configuration
     public boolean isNicheFinderEnabled() {
@@ -376,20 +364,13 @@ public class Configuration {
     public void validate() {
         StringBuilder errors = new StringBuilder();
 
-        if (getSunoApiKey() == null || getSunoApiKey().contains("YOUR_")) {
-            errors.append("- Suno API key is not configured\n");
-        }
-
         if (getOpenAiApiKey() == null || getOpenAiApiKey().contains("YOUR_")) {
             errors.append("- OpenAI API key is not configured\n");
         }
 
-        if (getYouTubeClientId() == null || getYouTubeClientId().contains("YOUR_")) {
-            errors.append("- YouTube Client ID is not configured\n");
-        }
-
-        if (getYouTubeClientSecret() == null || getYouTubeClientSecret().contains("YOUR_")) {
-            errors.append("- YouTube Client Secret is not configured\n");
+        String ttsKey = getTtsApiKey();
+        if (ttsKey == null || ttsKey.isEmpty() || ttsKey.contains("YOUR_")) {
+            errors.append("- ElevenLabs API key is not configured (tts.api.key)\n");
         }
 
         if (errors.length() > 0) {
