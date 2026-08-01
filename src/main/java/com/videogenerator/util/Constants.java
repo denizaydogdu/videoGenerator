@@ -63,7 +63,7 @@ public class Constants {
     public static final String DEFAULT_VIDEO_MOOD = "energetic";
 
     // YouTube Settings
-    public static final String YOUTUBE_CATEGORY_ID = "10"; // Music category
+    public static final String YOUTUBE_CATEGORY_ID = "24"; // Entertainment
     public static final String YOUTUBE_PRIVACY_STATUS = "public";
     public static final String YOUTUBE_SCOPES = "https://www.googleapis.com/auth/youtube.upload";
 

@@ -149,7 +149,7 @@ public class YouTubeApiClient {
                                            String privacyStatus, boolean syntheticMedia) {
         VideoSnippet snippet = new VideoSnippet();
         snippet.setTitle(metadata.getTitle());
-        snippet.setDescription(metadata.getDescription());
+        snippet.setDescription(buildDescription(metadata));
         snippet.setCategoryId(categoryId);
         if (metadata.getYouTubeTags().length > 0) {
             snippet.setTags(Arrays.asList(metadata.getYouTubeTags()));
@@ -173,6 +173,24 @@ public class YouTubeApiClient {
         video.setSnippet(snippet);
         video.setStatus(status);
         return video;
+    }
+
+    /**
+     * Description with VISIBLE hashtags appended: Shorts discovery reads
+     * hashtags from the description body, not from backend tags. #Shorts
+     * is always ensured.
+     */
+    static String buildDescription(VideoMetadata metadata) {
+        StringBuilder sb = new StringBuilder(
+                metadata.getDescription() == null ? "" : metadata.getDescription());
+        java.util.List<String> tags = metadata.getHashtags() == null
+                ? new java.util.ArrayList<>()
+                : new java.util.ArrayList<>(metadata.getHashtags());
+        if (tags.stream().noneMatch(t -> t.equalsIgnoreCase("#shorts"))) {
+            tags.add("#Shorts");
+        }
+        sb.append("\n\n").append(String.join(" ", tags));
+        return sb.toString();
     }
 
     /**

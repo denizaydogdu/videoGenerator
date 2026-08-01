@@ -51,6 +51,16 @@ class YouTubePublisherTest {
     }
 
     @Test
+    void descriptionCarriesVisibleHashtagsAndShorts() {
+        Video video = YouTubeApiClient.buildVideoResource(metadata(), "24", "public", true);
+        String desc = video.getSnippet().getDescription();
+        assertTrue(desc.contains("#mystery"), "hashtag'ler açıklamada görünür olmalı");
+        assertTrue(desc.contains("#crime"), desc);
+        assertTrue(desc.contains("#Shorts"), "#Shorts etiketi eklenmiş olmalı");
+        assertTrue(desc.startsWith("Desc"), "asıl açıklama başta kalmalı");
+    }
+
+    @Test
     void missingLanguageOmitsTargeting() {
         Video video = YouTubeApiClient.buildVideoResource(metadata(), "10", "public", true);
         assertNull(video.getSnippet().getDefaultLanguage());

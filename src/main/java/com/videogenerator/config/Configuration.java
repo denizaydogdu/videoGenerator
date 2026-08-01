@@ -199,7 +199,7 @@ public class Configuration {
 
     // YouTube Settings
     public String getYouTubeCategoryId() {
-        return get("youtube.category.id", "10");
+        return get("youtube.category.id", "24");
     }
 
     public String getYouTubePrivacyStatus() {
