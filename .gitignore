@@ -48,3 +48,7 @@ config/video_history.json
 # Channel profiles contain per-channel token paths; keep only examples
 channels/*.json
 !channels/*.json.example
+
+# Local runtime artifacts
+data/
+.claude/tsc-cache/
