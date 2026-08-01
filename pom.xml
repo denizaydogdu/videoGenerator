@@ -14,6 +14,8 @@
     <description>Automatic YouTube Shorts video generator using AI (Suno + Sora + GPT-4)</description>
 
     <properties>
+        <!-- override with -Dexcluded.groups= to run ffmpeg-tagged tests -->
+        <excluded.groups>ffmpeg</excluded.groups>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
@@ -161,6 +163,11 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.1.2</version>
+                <configuration>
+                    <!-- ffmpeg-tagged integration tests need a local ffmpeg;
+                         run them with -Dexcluded.groups= -->
+                    <excludedGroups>${excluded.groups}</excludedGroups>
+                </configuration>
             </plugin>
         </plugins>
     </build>

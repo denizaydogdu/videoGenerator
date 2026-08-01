@@ -244,10 +244,16 @@ public class FFmpegWrapper {
         }
     }
 
+    /** Configured ffmpeg binary path (config: ffmpeg.path). */
+    public String getFfmpegPath() {
+        return ffmpegPath;
+    }
+
     /**
-     * Executes FFmpeg command
+     * Executes FFmpeg command. Public so composite renderers (KenBurns)
+     * can reuse the same timeout/error-surfacing behavior.
      */
-    private void executeCommand(List<String> command, String operation) throws VideoProcessingException {
+    public void executeCommand(List<String> command, String operation) throws VideoProcessingException {
         try {
             logger.debug("Executing command: {}", String.join(" ", command));
 
@@ -275,8 +281,15 @@ public class FFmpegWrapper {
 
             int exitCode = process.exitValue();
             if (exitCode != 0) {
+                // Surface only the tail: ffmpeg output can be thousands of lines,
+                // the actual error is at the end.
+                String[] lines = output.toString().split("\n");
+                int from = Math.max(0, lines.length - 20);
+                String tail = String.join("\n",
+                        java.util.Arrays.copyOfRange(lines, from, lines.length));
                 throw new VideoProcessingException(
-                        "FFmpeg command failed with exit code " + exitCode + ": " + output.toString()
+                        "FFmpeg command failed with exit code " + exitCode
+                                + " (last " + (lines.length - from) + " lines):\n" + tail
                 );
             }
 
