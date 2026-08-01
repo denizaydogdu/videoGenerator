@@ -28,7 +28,6 @@ public class OpenAiGptClient implements LlmClient {
     private final Gson gson;
     private final String apiKey;
 
-    private static final double DEFAULT_TEMPERATURE = 0.7;
 
     public OpenAiGptClient() {
         this.config = Configuration.getInstance();
@@ -318,28 +317,36 @@ public class OpenAiGptClient implements LlmClient {
     }
 
     /**
+     * Builds the chat request body. GPT-5.x constraints (verified live):
+     * max_tokens is rejected (use max_completion_tokens) and temperature
+     * only supports the default — so neither legacy field is sent.
+     */
+    static JsonObject buildChatBody(String model, int maxCompletionTokens,
+                                    String systemMessage, String userMessage) {
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("model", model);
+        requestBody.addProperty("max_completion_tokens", maxCompletionTokens);
+
+        JsonArray messages = new JsonArray();
+        JsonObject systemMsg = new JsonObject();
+        systemMsg.addProperty("role", "system");
+        systemMsg.addProperty("content", systemMessage);
+        messages.add(systemMsg);
+        JsonObject userMsg = new JsonObject();
+        userMsg.addProperty("role", "user");
+        userMsg.addProperty("content", userMessage);
+        messages.add(userMsg);
+        requestBody.add("messages", messages);
+        return requestBody;
+    }
+
+    /**
      * Makes a chat completion request to GPT API
      */
     private String chatCompletion(String systemMessage, String userMessage) throws ApiException {
         try {
-            JsonObject requestBody = new JsonObject();
-            requestBody.addProperty("model", config.getLlmModel());
-            requestBody.addProperty("temperature", DEFAULT_TEMPERATURE);
-            requestBody.addProperty("max_tokens", config.getInt("llm.max.tokens", 2000));
-
-            JsonArray messages = new JsonArray();
-
-            JsonObject systemMsg = new JsonObject();
-            systemMsg.addProperty("role", "system");
-            systemMsg.addProperty("content", systemMessage);
-            messages.add(systemMsg);
-
-            JsonObject userMsg = new JsonObject();
-            userMsg.addProperty("role", "user");
-            userMsg.addProperty("content", userMessage);
-            messages.add(userMsg);
-
-            requestBody.add("messages", messages);
+            JsonObject requestBody = buildChatBody(config.getLlmModel(),
+                    config.getInt("llm.max.tokens", 2000), systemMessage, userMessage);
 
             Map<String, String> headers = createHeaders();
             String url = Constants.OPENAI_API_BASE_URL + Constants.OPENAI_CHAT_ENDPOINT;
