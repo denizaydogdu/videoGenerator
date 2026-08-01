@@ -42,6 +42,22 @@ class YouTubePublisherTest {
     }
 
     @Test
+    void videoResourceCarriesLanguageTargeting() {
+        VideoMetadata md = metadata();
+        md.setLanguage("es"); // dil etiketi algoritma hedeflemesi için kritik
+        Video video = YouTubeApiClient.buildVideoResource(md, "10", "public", true);
+        assertEquals("es", video.getSnippet().getDefaultLanguage());
+        assertEquals("es", video.getSnippet().getDefaultAudioLanguage());
+    }
+
+    @Test
+    void missingLanguageOmitsTargeting() {
+        Video video = YouTubeApiClient.buildVideoResource(metadata(), "10", "public", true);
+        assertNull(video.getSnippet().getDefaultLanguage());
+        assertNull(video.getSnippet().getDefaultAudioLanguage());
+    }
+
+    @Test
     void publishUploadsRenderAndReturnsPublication(@TempDir Path dir) throws Exception {
         Files.createDirectories(dir.resolve("renders"));
         Files.writeString(dir.resolve("renders/en.mp4"), "mp4");

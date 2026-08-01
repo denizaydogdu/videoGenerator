@@ -13,6 +13,7 @@ public class VideoMetadata {
 
     @SerializedName("hashtags")
     private List<String> hashtags;
+    private String language; // BCP-47 (en/es/tr) — YouTube dil hedeflemesi için
 
     private String category;
 
@@ -52,6 +53,14 @@ public class VideoMetadata {
 
     public void setHashtags(List<String> hashtags) {
         this.hashtags = hashtags;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language;
     }
 
     public String getCategory() {

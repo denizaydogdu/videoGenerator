@@ -154,6 +154,12 @@ public class YouTubeApiClient {
         if (metadata.getYouTubeTags().length > 0) {
             snippet.setTags(Arrays.asList(metadata.getYouTubeTags()));
         }
+        if (metadata.getLanguage() != null && !metadata.getLanguage().isBlank()) {
+            // Dil hedeflemesi: algoritmanın videoyu doğru dil kitlesine
+            // göstermesi için kritik (çok dilli kanal senaryosu)
+            snippet.setDefaultLanguage(metadata.getLanguage());
+            snippet.setDefaultAudioLanguage(metadata.getLanguage());
+        }
 
         VideoStatus status = new VideoStatus();
         status.setPrivacyStatus(privacyStatus);

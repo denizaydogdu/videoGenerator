@@ -215,6 +215,7 @@ public class JobPipeline {
 
                 LangVariant variant = new LangVariant();
                 variant.setLang(lang);
+                localized.getMetadata().setLanguage(lang); // YouTube dil hedeflemesi
                 variant.setMetadata(localized.getMetadata());
                 variant.setAudioFile("audio/" + lang + ".mp3");
                 variant.setAlignmentFile("audio/" + lang + ".alignment.json");
