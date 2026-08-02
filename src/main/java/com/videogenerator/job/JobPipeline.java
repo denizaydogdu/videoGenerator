@@ -65,6 +65,7 @@ public class JobPipeline {
     private final IdeaGenerator ideaGenerator;
     private final boolean musicEnabled;
     private Path localMusicDir; // F5: telifsiz yerel müzik klasörü (opsiyonel)
+    private String topicHint;   // vaka rotasyonu: işe özel konu (opsiyonel)
 
     /** F4b — dil başına son-kart seri vaadi (görsel CTA; sesli CTA yok). */
     private static final java.util.Map<String, String> END_CARDS = java.util.Map.of(
@@ -74,6 +75,16 @@ public class JobPipeline {
 
     public JobPipeline withLocalMusicDir(Path dir) {
         this.localMusicDir = dir;
+        return this;
+    }
+
+    /**
+     * Vaka rotasyonu için işe özel konu ipucu (ör. "a well-documented Turkish
+     * cold case, unsolved 10+ years"). Verilirse IdeaGenerator atlanır ve
+     * hikâye doğrudan bu konuyla yazılır.
+     */
+    public JobPipeline withTopicHint(String hint) {
+        this.topicHint = (hint == null || hint.isBlank()) ? null : hint.trim();
         return this;
     }
 
@@ -151,11 +162,17 @@ public class JobPipeline {
             // ===== PHASE 1: language-independent =====
             Story story = job.getStory();
             if (story == null) {
-                NicheData niche = new NicheData(profile.getNiche().getTopic(),
-                        profile.getNiche().getKeywords());
-                List<ContentIdea> ideas = ideaGenerator.generateIdeas(niche, 5);
-                ContentIdea idea = ideaGenerator.selectBestIdea(ideas);
-                logger.info("Selected idea: {}", idea.getTitle());
+                ContentIdea idea;
+                if (topicHint != null) {
+                    idea = new ContentIdea(topicHint, topicHint);
+                    logger.info("Topic hint given, skipping idea generation: {}", topicHint);
+                } else {
+                    NicheData niche = new NicheData(profile.getNiche().getTopic(),
+                            profile.getNiche().getKeywords());
+                    List<ContentIdea> ideas = ideaGenerator.generateIdeas(niche, 5);
+                    idea = ideaGenerator.selectBestIdea(ideas);
+                    logger.info("Selected idea: {}", idea.getTitle());
+                }
 
                 story = new StoryWriter(llm).write(idea, profile);
                 job.setStory(story);

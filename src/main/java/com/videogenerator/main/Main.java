@@ -27,7 +27,11 @@ public class Main {
             switch (command) {
                 case "generate", "resume" -> {
                     requireArg(args, command + " requires an argument");
-                    runShortsFactory(command, args[1], config);
+                    // generate <channelId> [vaka ipucu...] — rotasyon için
+                    String hint = args.length > 2
+                            ? String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length))
+                            : null;
+                    runShortsFactory(command, args[1], hint, config);
                 }
                 case "publish" -> {
                     requireArg(args, "publish requires a jobId");
@@ -248,9 +252,10 @@ public class Main {
     /**
      * CLI wrapper: runs one pipeline job and exits non-zero on failure.
      */
-    private static void runShortsFactory(String command, String target, Configuration config) {
+    private static void runShortsFactory(String command, String target,
+                                         String topicHint, Configuration config) {
         try {
-            runPipelineJob(command, target, config);
+            runPipelineJob(command, target, topicHint, config);
         } catch (Exception e) {
             logger.error("Shorts factory {} failed", command, e);
             System.out.println("ERROR: " + e.getMessage());
@@ -264,6 +269,12 @@ public class Main {
      * executor.
      */
     private static void runPipelineJob(String command, String target, Configuration config)
+            throws Exception {
+        runPipelineJob(command, target, null, config);
+    }
+
+    private static void runPipelineJob(String command, String target,
+                                       String topicHint, Configuration config)
             throws Exception {
         var gptClient = new com.videogenerator.api.OpenAiGptClient();
         var elevenLabs = new com.videogenerator.api.ElevenLabsClient();
@@ -298,7 +309,8 @@ public class Main {
                 new com.videogenerator.service.IdeaGenerator(gptClient),
                 config.getBoolean("music.enabled", true))
                 .withLocalMusicDir(java.nio.file.Path.of(
-                        config.get("music.local.dir", "assets/music")));
+                        config.get("music.local.dir", "assets/music")))
+                .withTopicHint(topicHint);
 
         com.videogenerator.job.Job job = "resume".equals(command)
                 ? pipeline.resume(target)
@@ -316,7 +328,7 @@ public class Main {
         System.out.println("\nShorts Factory v2.0.0");
         System.out.println("Usage: java -jar youtube-shorts-generator.jar <command>");
         System.out.println("\nCommands:");
-        System.out.println("  generate <channelId> - Generate: story -> images -> TTS -> render (PENDING_REVIEW)");
+        System.out.println("  generate <channelId> [topic hint] - Generate: story -> images -> TTS -> render (PENDING_REVIEW)");
         System.out.println("  resume <jobId>       - Resume an interrupted/failed job");
         System.out.println("  publish <jobId>      - Publish an APPROVED/PUBLISHING job's variants");
         System.out.println("  serve                - Start the backoffice review console (localhost)");

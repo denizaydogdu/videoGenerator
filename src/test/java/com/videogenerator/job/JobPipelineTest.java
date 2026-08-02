@@ -145,6 +145,51 @@ class JobPipelineTest {
     }
 
     @Test
+    void topicHintBypassesIdeaGeneratorAndReachesPrompt(@TempDir Path root) throws Exception {
+        Path channels = channelsDir(root,
+                ChannelStoreTest.VALID.replace("truecrime-en", "ch1")
+                        .replace("\"sceneCount\":6", "\"sceneCount\":3")
+                        .replace("[\"en\",\"es\"]", "[\"en\"]"));
+        List<String> prompts = new java.util.ArrayList<>();
+        LlmClient llm = (sys, user) -> {
+            prompts.add(user);
+            return user.contains("Write a gripping") ? StoryWriterTest.LLM_JSON : LOC_JSON;
+        };
+        ImageGenerator img = (p, out) -> {
+            try { Files.writeString(out, "png"); } catch (Exception e) { throw new RuntimeException(e); }
+            return out.toFile();
+        };
+        JobPipeline.TtsEngine tts = (text, voice, audioOut, alignOut) -> {
+            try {
+                Files.writeString(audioOut, "mp3");
+                Alignment a = FakeAlignments.forText(text);
+                Files.writeString(alignOut, new com.google.gson.Gson().toJson(a));
+                return new ElevenLabsClient.TtsResult(audioOut.toFile(), a);
+            } catch (Exception e) { throw new RuntimeException(e); }
+        };
+        JobPipeline.RenderEngine render = (images, durations, vo, mus, ass, out) -> {
+            Files.writeString(out, "mp4");
+            return out.toFile();
+        };
+        IdeaGenerator ideas = mock(IdeaGenerator.class);
+
+        JobStore jobs = new JobStore(root.resolve("jobs"));
+        CostTracker tracker = new CostTracker(root.resolve("costs"));
+        JobPipeline pipeline = new JobPipeline(jobs, new ChannelStore(channels),
+                llm, img, (p, d, out) -> { throw new AssertionError("no music"); },
+                tts, render, new BudgetGuard(tracker, 100.0), tracker, ideas, false)
+                .withTopicHint("the 1993 Anamur lighthouse cold case");
+
+        Job job = pipeline.run("ch1");
+
+        assertEquals(JobStatus.PENDING_REVIEW, job.getStatus());
+        verifyNoInteractions(ideas);
+        assertTrue(prompts.stream().anyMatch(p ->
+                        p.contains("Topic: the 1993 Anamur lighthouse cold case")),
+                "hint must reach the story prompt as the topic");
+    }
+
+    @Test
     void resumeSkipsCompletedVariantsAndFinishes(@TempDir Path root) throws Exception {
         Path channels = channelsDir(root,
                 ChannelStoreTest.VALID.replace("truecrime-en", "ch1")
