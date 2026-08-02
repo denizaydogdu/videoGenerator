@@ -40,7 +40,7 @@ async function loadChannels() {
   const all = document.createElement("li");
   all.textContent = "Tüm kanallar";
   all.className = state.channel === null ? "active" : "";
-  all.onclick = () => { state.channel = null; refresh(); };
+  all.onclick = () => { state.channel = null; showList(); refresh(); };
   list.appendChild(all);
   for (const ch of channels) {
     const li = document.createElement("li");
@@ -54,7 +54,7 @@ async function loadChannels() {
       badge.textContent = ch.pendingCount;
       li.appendChild(badge);
     }
-    li.onclick = () => { state.channel = ch.channelId; refresh(); };
+    li.onclick = () => { state.channel = ch.channelId; showList(); refresh(); };
     list.appendChild(li);
   }
   // Üretim dialogundaki kanal seçimi
@@ -139,7 +139,7 @@ let detailRequestSeq = 0; // hızlı ardışık tıklamalarda eski yanıtı at
 
 const PLATFORM_ICONS = { YOUTUBE: "▶", INSTAGRAM: "📷", FACEBOOK: "ⓕ" };
 
-async function loadStats() {
+async function loadJobStats() {
   const box = $("stats-box");
   box.textContent = "Yükleniyor…";
   try {
@@ -178,12 +178,18 @@ async function openDetail(jobId) {
   renderDetail();
 }
 
-function closeDetail() {
+function showList() {
+  // Detay panelini kapat (yenileme YAPMADAN) — kenar menü gezinmeleri
+  // kendi refresh'ini çağırır, çift istek olmasın
   state.job = null;
   $("job-detail").classList.add("hidden");
   $("job-grid").classList.remove("hidden");
   $("page-title").textContent = "İşler";
   $("player").pause?.();
+}
+
+function closeDetail() {
+  showList();
   refresh();
 }
 
@@ -323,12 +329,13 @@ document.addEventListener("DOMContentLoaded", () => {
       $("status-list").querySelectorAll("li").forEach((x) => x.classList.remove("active"));
       li.classList.add("active");
       state.status = li.dataset.status;
+      showList();
       refresh();
     };
   });
   $("btn-back").onclick = closeDetail;
   $("btn-save-meta").onclick = saveMetadata;
-  $("btn-stats").onclick = loadStats;
+  $("btn-stats").onclick = loadJobStats;
   $("btn-approve").onclick = approve;
   $("btn-reject").onclick = reject;
   $("btn-generate").onclick = openGenerateDialog;
