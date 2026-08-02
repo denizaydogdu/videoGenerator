@@ -333,6 +333,15 @@ document.addEventListener("DOMContentLoaded", () => {
       refresh();
     };
   });
+  $("brand-home").onclick = () => {
+    // Logo = ana sayfa: tüm kanallar + "Tümü" filtresi
+    state.channel = null;
+    state.status = "";
+    $("status-list").querySelectorAll("li").forEach((x) =>
+      x.classList.toggle("active", x.dataset.status === ""));
+    showList();
+    refresh();
+  };
   $("btn-back").onclick = closeDetail;
   $("btn-save-meta").onclick = saveMetadata;
   $("btn-stats").onclick = loadJobStats;
