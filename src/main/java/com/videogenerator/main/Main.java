@@ -222,10 +222,11 @@ public class Main {
                     new com.videogenerator.publish.GraphHttp(), metaToken,
                     config.get("meta.page.id", ""), config.get("meta.ig.user.id", ""),
                     5000);
+            String metaLang = config.get("meta.publish.lang", "en");
             publishers.put("INSTAGRAM",
-                    new com.videogenerator.publish.MetaReelsPublisher("INSTAGRAM", meta));
+                    new com.videogenerator.publish.MetaReelsPublisher("INSTAGRAM", meta, metaLang));
             publishers.put("FACEBOOK",
-                    new com.videogenerator.publish.MetaReelsPublisher("FACEBOOK", meta));
+                    new com.videogenerator.publish.MetaReelsPublisher("FACEBOOK", meta, metaLang));
         }
         return new com.videogenerator.publish.PublishService(
                 jobStore, channelStore, java.util.Map.copyOf(publishers),

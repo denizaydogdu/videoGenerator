@@ -24,13 +24,25 @@ public class MetaReelsPublisher implements Publisher {
 
     private final String platform; // "INSTAGRAM" | "FACEBOOK"
     private final MetaApiClient client;
+    private final String onlyLang; // null = tüm diller
 
     public MetaReelsPublisher(String platform, MetaApiClient client) {
+        this(platform, client, null);
+    }
+
+    /**
+     * @param onlyLang yalnız bu dil yayınlanır, diğer varyantlar SKIPPED_LANG
+     *                 olarak kaydedilir. Meta'nın 2026 orijinallik kuralları
+     *                 aynı görsellerin çok-dilli kopyalarını duplicate sayıp
+     *                 hesabın keşfet erişimini kısabiliyor.
+     */
+    public MetaReelsPublisher(String platform, MetaApiClient client, String onlyLang) {
         if (!"INSTAGRAM".equals(platform) && !"FACEBOOK".equals(platform)) {
             throw new IllegalArgumentException("Unsupported Meta platform: " + platform);
         }
         this.platform = platform;
         this.client = client;
+        this.onlyLang = (onlyLang == null || onlyLang.isBlank()) ? null : onlyLang;
     }
 
     @Override
@@ -41,6 +53,14 @@ public class MetaReelsPublisher implements Publisher {
     @Override
     public Publication publish(Job job, LangVariant variant, ChannelProfile profile,
                                Path jobDir) throws Exception {
+        if (onlyLang != null && !onlyLang.equals(variant.getLang())) {
+            logger.info("Skipping {} [{}] — {} publishes only '{}' (duplicate guard)",
+                    job.getJobId(), variant.getLang(), platform, onlyLang);
+            Publication skip = new Publication();
+            skip.setPlatform(platform);
+            skip.setStatus("SKIPPED_LANG");
+            return skip;
+        }
         Path render = jobDir.resolve(variant.getRenderFile());
         if (!Files.isRegularFile(render)) {
             throw new IllegalStateException("Render file missing: " + render);
