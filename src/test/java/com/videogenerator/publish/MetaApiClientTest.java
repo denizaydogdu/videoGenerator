@@ -134,6 +134,43 @@ class MetaApiClientTest {
     }
 
     @Test
+    void igViewsResolvedByPermalink() throws Exception {
+        FakeHttp http = new FakeHttp() {
+            @Override
+            public String get(String url) {
+                if (url.contains("/IGUSER/media?")) {
+                    return """
+                        {"data":[
+                          {"id":"M1","permalink":"https://www.instagram.com/reel/AAA/"},
+                          {"id":"M2","permalink":"https://www.instagram.com/reel/BBB/"}]}""";
+                }
+                if (url.contains("/M2/insights")) {
+                    return "{\"data\":[{\"name\":\"views\",\"values\":[{\"value\":42}]}]}";
+                }
+                return super.get(url);
+            }
+        };
+
+        Long views = client(http).igViewsByPermalink("https://www.instagram.com/reel/BBB/");
+        assertEquals(42L, views);
+    }
+
+    @Test
+    void fbReelViewsFromVideoNode() throws Exception {
+        FakeHttp http = new FakeHttp() {
+            @Override
+            public String get(String url) {
+                if (url.contains("/VID9?fields=views")) {
+                    return "{\"views\":7,\"id\":\"VID9\"}";
+                }
+                return super.get(url);
+            }
+        };
+
+        assertEquals(7L, client(http).fbReelViews("VID9"));
+    }
+
+    @Test
     void igErrorStatusFailsInsteadOfPublishing(@TempDir Path dir) throws Exception {
         Path video = dir.resolve("v.mp4");
         Files.writeString(video, "mp4");

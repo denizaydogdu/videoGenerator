@@ -137,6 +137,35 @@ async function loadJobs() {
 // ---------- Detail ----------
 let detailRequestSeq = 0; // hızlı ardışık tıklamalarda eski yanıtı at
 
+const PLATFORM_ICONS = { YOUTUBE: "▶", INSTAGRAM: "📷", FACEBOOK: "ⓕ" };
+
+async function loadStats() {
+  const box = $("stats-box");
+  box.textContent = "Yükleniyor…";
+  try {
+    const rows = await api(`/api/jobs/${state.job.jobId}/stats`);
+    if (!rows.length) {
+      box.textContent = "Yayınlanmış varyant yok";
+      return;
+    }
+    box.innerHTML = "";
+    const table = document.createElement("table");
+    table.className = "stats-table";
+    for (const r of rows) {
+      const tr = document.createElement("tr");
+      const views = r.views == null ? "—" : r.views.toLocaleString("tr-TR");
+      tr.innerHTML = `<td>${r.lang}</td>` +
+        `<td>${PLATFORM_ICONS[r.platform] || ""} ${r.platform}</td>` +
+        `<td class="stats-views">${views}</td>`;
+      tr.onclick = () => window.open(r.url, "_blank");
+      table.appendChild(tr);
+    }
+    box.appendChild(table);
+  } catch (e) {
+    box.textContent = e.message;
+  }
+}
+
 async function openDetail(jobId) {
   const seq = ++detailRequestSeq;
   const job = await api("/api/jobs/" + jobId);
@@ -299,6 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-back").onclick = closeDetail;
   $("btn-save-meta").onclick = saveMetadata;
+  $("btn-stats").onclick = loadStats;
   $("btn-approve").onclick = approve;
   $("btn-reject").onclick = reject;
   $("btn-generate").onclick = openGenerateDialog;

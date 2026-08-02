@@ -42,6 +42,12 @@ public class BackofficeServer {
     private final JobLauncher publishLauncher;
     private final int requestedPort;
     private final Gson gson = new Gson();
+    private StatsCollector statsCollector; // opsiyonel — yoksa /stats 503
+
+    public BackofficeServer withStats(StatsCollector collector) {
+        this.statsCollector = collector;
+        return this;
+    }
     private HttpServer httpServer;
     private java.util.concurrent.ExecutorService executor;
 
@@ -117,6 +123,14 @@ public class BackofficeServer {
                         case "reject" -> requirePost(ex, method, () -> {
                             service.reject(jobId);
                             sendNoContent(ex);
+                        });
+                        case "stats" -> requireGet(ex, method, () -> {
+                            if (statsCollector == null) {
+                                sendError(ex, 503, "Stats not configured");
+                                return;
+                            }
+                            sendJson(ex, 200, gson.toJson(
+                                    statsCollector.collect(service.jobs().load(jobId))));
                         });
                         default -> sendError(ex, 404, "Unknown resource");
                     }

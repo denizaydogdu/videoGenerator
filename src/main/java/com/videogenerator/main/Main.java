@@ -239,6 +239,41 @@ public class Main {
      * run on a single-thread executor (serialized: concurrent runs of the
      * same channel would duplicate spend).
      */
+    /**
+     * İzlenme sağlayıcıları. YouTube istemcisi TEMBEL kurulur: serve
+     * açılışında OAuth tarayıcı akışı tetiklenmesin — ilk istatistik
+     * isteğinde kurulur ve önbellenir.
+     */
+    private static com.videogenerator.web.StatsCollector buildStatsCollector(
+            Configuration config) {
+        var providers = new java.util.HashMap<String, com.videogenerator.web.StatsCollector.ViewsProvider>();
+        var ytHolder = new java.util.concurrent.atomic.AtomicReference<com.videogenerator.api.YouTubeApiClient>();
+        providers.put("YOUTUBE", url -> {
+            String id = com.videogenerator.web.StatsCollector.youtubeId(url);
+            if (id == null) {
+                return null;
+            }
+            var client = ytHolder.get();
+            if (client == null) {
+                client = new com.videogenerator.api.YouTubeApiClient("tokens/truecrime-en");
+                ytHolder.set(client);
+            }
+            return client.getViewCount(id);
+        });
+        String metaToken = config.get("meta.access.token", "");
+        if (!metaToken.isBlank()) {
+            var meta = new com.videogenerator.publish.MetaApiClient(
+                    new com.videogenerator.publish.GraphHttp(), metaToken,
+                    config.get("meta.page.id", ""), config.get("meta.ig.user.id", ""), 0);
+            providers.put("INSTAGRAM", meta::igViewsByPermalink);
+            providers.put("FACEBOOK", url -> {
+                String id = com.videogenerator.web.StatsCollector.fbReelId(url);
+                return id == null ? null : meta.fbReelViews(id);
+            });
+        }
+        return new com.videogenerator.web.StatsCollector(providers);
+    }
+
     private static void runBackoffice(Configuration config) {
         try {
             var jobStore = new com.videogenerator.job.JobStore(
@@ -276,7 +311,8 @@ public class Main {
                     });
 
             var server = new com.videogenerator.web.BackofficeServer(
-                    service, launcher, publishLauncher, config.getBackofficePort());
+                    service, launcher, publishLauncher, config.getBackofficePort())
+                    .withStats(buildStatsCollector(config));
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {

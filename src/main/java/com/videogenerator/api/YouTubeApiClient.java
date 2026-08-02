@@ -327,6 +327,20 @@ public class YouTubeApiClient {
      * @return list of trending video items
      * @throws IOException if API call fails
      */
+    /** Tek videonun izlenme sayısı (backoffice istatistikleri için). */
+    public Long getViewCount(String videoId) throws IOException {
+        VideoListResponse resp = youtubeService.videos()
+                .list(java.util.List.of("statistics"))
+                .setId(java.util.List.of(videoId))
+                .execute();
+        if (resp.getItems() == null || resp.getItems().isEmpty()) {
+            return null;
+        }
+        var stats = resp.getItems().get(0).getStatistics();
+        return stats == null || stats.getViewCount() == null
+                ? null : stats.getViewCount().longValue();
+    }
+
     public VideoListResponse getTrendingShorts(String regionCode, int maxResults) throws IOException {
         logger.info("Fetching trending Shorts for region: {}", regionCode);
 

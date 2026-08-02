@@ -139,6 +139,50 @@ public class MetaApiClient {
         return url;
     }
 
+    /** Permalink'ten IG medya id'sini bulup "views" metriğini döner; yoksa null. */
+    public Long igViewsByPermalink(String permalink) throws Exception {
+        JsonObject media = json(http.get(GRAPH + "/" + igUserId
+                + "/media?fields=id,permalink&limit=50&access_token=" + userToken));
+        if (!media.has("data")) {
+            return null;
+        }
+        for (var el : media.getAsJsonArray("data")) {
+            JsonObject m = el.getAsJsonObject();
+            if (m.has("permalink") && permalink.equals(m.get("permalink").getAsString())) {
+                JsonObject insights = json(http.get(GRAPH + "/" + m.get("id").getAsString()
+                        + "/insights?metric=views&access_token=" + userToken));
+                return firstMetricValue(insights, "views");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * FB Reel izlenmesi. Video düğümündeki "views" alanı sayfa token'ıyla
+     * ekstra izin gerektirmez (video_insights read_insights isterdi).
+     */
+    public Long fbReelViews(String videoId) throws Exception {
+        JsonObject video = json(http.get(GRAPH + "/" + videoId
+                + "?fields=views&access_token=" + pageToken()));
+        return video.has("views") ? video.get("views").getAsLong() : null;
+    }
+
+    private static Long firstMetricValue(JsonObject insights, String metric) {
+        if (!insights.has("data")) {
+            return null;
+        }
+        for (var el : insights.getAsJsonArray("data")) {
+            JsonObject m = el.getAsJsonObject();
+            if (metric.equals(m.get("name").getAsString()) && m.has("values")) {
+                var values = m.getAsJsonArray("values");
+                if (!values.isEmpty()) {
+                    return values.get(0).getAsJsonObject().get("value").getAsLong();
+                }
+            }
+        }
+        return null;
+    }
+
     private void uploadBinary(String uploadUrl, String token, Path video) throws Exception {
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Authorization", "OAuth " + token);
