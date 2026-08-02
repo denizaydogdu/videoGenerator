@@ -205,3 +205,12 @@ dialog .field { margin-bottom:16px; }
 
 .brand { cursor:pointer; user-select:none; }
 .brand:hover { color:var(--primary, #6366F1); transition:color 150ms ease; }
+
+.stats-table th {
+  padding:4px 8px; font-size:12px; font-weight:500; color:var(--text-dim);
+  text-align:right; border-bottom:1px solid var(--border);
+}
+.stats-table th:first-child { text-align:left; }
+.stats-table tr { cursor:default; }
+.stats-link { cursor:pointer; }
+.stats-link:hover { color:var(--primary, #6366F1); text-decoration:underline; }

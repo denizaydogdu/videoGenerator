@@ -148,18 +148,33 @@ async function loadJobStats() {
       box.textContent = "Yayınlanmış varyant yok";
       return;
     }
+    // Pivot: satır = dil, sütun = platform
+    const platforms = [...new Set(rows.map((r) => r.platform))];
+    const langs = [...new Set(rows.map((r) => r.lang))];
+    const cell = (lang, platform) =>
+      rows.find((r) => r.lang === lang && r.platform === platform);
     box.innerHTML = "";
     const table = document.createElement("table");
     table.className = "stats-table";
-    for (const r of rows) {
+    const head = document.createElement("tr");
+    head.innerHTML = "<th></th>" + platforms.map((p) =>
+      `<th>${PLATFORM_ICONS[p] || ""} ${p.charAt(0) + p.slice(1).toLowerCase()}</th>`).join("");
+    table.appendChild(head);
+    for (const lang of langs) {
       const tr = document.createElement("tr");
-      const views = r.views == null ? "—" : r.views.toLocaleString("tr-TR");
-      tr.innerHTML = `<td>${r.lang}</td>` +
-        `<td>${PLATFORM_ICONS[r.platform] || ""} ${r.platform}</td>` +
-        `<td class="stats-views">${views}</td>`;
-      tr.onclick = () => window.open(r.url, "_blank");
+      let html = `<td>${lang}</td>`;
+      for (const p of platforms) {
+        const r = cell(lang, p);
+        const views = !r || r.views == null ? "—" : r.views.toLocaleString("tr-TR");
+        html += `<td class="stats-views${r ? " stats-link" : ""}" ` +
+          (r ? `data-url="${r.url}"` : "") + `>${views}</td>`;
+      }
+      tr.innerHTML = html;
       table.appendChild(tr);
     }
+    table.querySelectorAll(".stats-link").forEach((td) => {
+      td.onclick = () => window.open(td.dataset.url, "_blank");
+    });
     box.appendChild(table);
   } catch (e) {
     box.textContent = e.message;
@@ -176,6 +191,7 @@ async function openDetail(jobId) {
   $("job-detail").classList.remove("hidden");
   $("page-title").textContent = state.job.story?.title || jobId;
   renderDetail();
+  loadJobStats().catch(() => {}); // detay açılınca izlenmeler otomatik gelsin
 }
 
 function showList() {
