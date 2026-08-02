@@ -88,6 +88,34 @@ public class StoryWriter {
                 profile.getTargetDurationSeconds(), profile.getSceneCount(),
                 pacing, totalWords, wordsPerScene);
 
+        // GPT ara sıra sahne dizisini bozuyor (canlı: `},{` ayraçları atlanıp
+        // tüm sahneler tek objeye yazıldı -> 1 sahne). Doğrulama hatası
+        // deterministik değil; taze bir denemede genelde düzeliyor.
+        final int maxAttempts = 3;
+        IllegalStateException lastFailure = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            String prompt = attempt == 1 ? user : user + String.format("""
+
+                    STRICT FORMAT REMINDER (a previous attempt was rejected: %s):
+                    "scenes" must be a JSON ARRAY of EXACTLY %d separate objects,
+                    each object with its own "narration" and "imagePrompts" keys.""",
+                    lastFailure.getMessage(), profile.getSceneCount());
+            try {
+                Story story = attemptStory(system, prompt, profile);
+                logger.info("Story written: {} ({} scenes)",
+                        story.getTitle(), story.getScenes().size());
+                return story;
+            } catch (IllegalStateException e) {
+                lastFailure = e;
+                logger.warn("Story attempt {}/{} rejected: {}",
+                        attempt, maxAttempts, e.getMessage());
+            }
+        }
+        throw lastFailure;
+    }
+
+    private Story attemptStory(String system, String user, ChannelProfile profile)
+            throws ApiException {
         String raw = LlmJson.strip(llm.complete(system, user));
         Story story;
         try {
@@ -114,7 +142,6 @@ public class StoryWriter {
             story.getScenes().get(i).setIndex(i + 1);
         }
         story.setStylePrefix(profile.getStylePrefix());
-        logger.info("Story written: {} ({} scenes)", story.getTitle(), story.getScenes().size());
         return story;
     }
 }

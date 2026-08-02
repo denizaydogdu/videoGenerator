@@ -19,6 +19,42 @@ public class StoryWriterTest {
          ]}""";
 
     @Test
+    void retriesOnceWhenLlmReturnsWrongSceneCount() throws Exception {
+        // Canlı hata (2026-08-02): GPT sahneleri tek objeye tekrarlanan
+        // anahtarlar olarak yazdı -> 1 sahne. Doğrulama hatası retry'lanmalı.
+        java.util.concurrent.atomic.AtomicInteger calls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        LlmClient flaky = (sys, user) -> calls.incrementAndGet() == 1
+                ? "{\"title\":\"x\",\"hookText\":\"h\",\"scenes\":[{\"narration\":\"a\",\"imagePrompt\":\"p\"}]}"
+                : LLM_JSON;
+        ChannelProfile p = TestProfiles.withSceneCount(3);
+        ContentIdea idea = new ContentIdea();
+        idea.setTitle("Vanished keeper");
+
+        Story story = new StoryWriter(flaky).write(idea, p);
+
+        assertEquals(3, story.getScenes().size());
+        assertEquals(2, calls.get(), "must retry after validation failure");
+    }
+
+    @Test
+    void givesUpAfterThreeFailedAttempts() {
+        java.util.concurrent.atomic.AtomicInteger calls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        LlmClient bad = (sys, user) -> {
+            calls.incrementAndGet();
+            return "{\"title\":\"x\",\"hookText\":\"h\",\"scenes\":[]}";
+        };
+        ChannelProfile p = TestProfiles.withSceneCount(3);
+        ContentIdea idea = new ContentIdea();
+        idea.setTitle("Vanished keeper");
+
+        assertThrows(IllegalStateException.class,
+                () -> new StoryWriter(bad).write(idea, p));
+        assertEquals(3, calls.get(), "exactly three attempts");
+    }
+
+    @Test
     void parsesScenesAndAssignsIndexes() throws Exception {
         LlmClient fake = (sys, user) -> LLM_JSON;
         ChannelProfile p = TestProfiles.withSceneCount(3);
