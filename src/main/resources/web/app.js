@@ -35,6 +35,7 @@ function toast(message, isError = false) {
 // ---------- Sidebar ----------
 async function loadChannels() {
   const channels = await api("/api/channels");
+  state.channels = channels;
   const list = $("channel-list");
   list.innerHTML = "";
   const all = document.createElement("li");
@@ -54,12 +55,6 @@ async function loadChannels() {
       badge.textContent = ch.pendingCount;
       li.appendChild(badge);
     }
-    const gear = document.createElement("span");
-    gear.className = "gear";
-    gear.textContent = "⚙";
-    gear.title = "Kanal ayarları";
-    gear.onclick = (e) => { e.stopPropagation(); openChannelSettings(ch.channelId); };
-    li.appendChild(gear);
     li.onclick = () => { state.channel = ch.channelId; showList(); refresh(); };
     list.appendChild(li);
   }
@@ -420,6 +415,13 @@ document.addEventListener("DOMContentLoaded", () => {
       x.classList.toggle("active", x.dataset.status === ""));
     showList();
     refresh();
+  };
+  $("nav-settings").onclick = () => {
+    // Seçili kanal (yoksa ilk kanal) için ayarları aç
+    const ch = state.channel
+        || (state.channels && state.channels[0]?.channelId);
+    if (ch) openChannelSettings(ch);
+    else toast("Kanal bulunamadı", true);
   };
   $("btn-back").onclick = closeDetail;
   $("btn-save-meta").onclick = saveMetadata;
