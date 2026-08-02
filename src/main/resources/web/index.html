@@ -91,6 +91,54 @@
   </main>
 </div>
 
+<dialog id="dlg-channel">
+  <form method="dialog">
+    <h3>Kanal ayarları — <span id="ch-title"></span></h3>
+    <label class="field"><span>Görünen ad</span>
+      <input id="ch-name" type="text"></label>
+    <label class="field"><span>Diller (virgülle, YouTube bu dillerin hepsini alır)</span>
+      <input id="ch-langs" type="text" placeholder="en, es, tr"></label>
+    <div class="field-row">
+      <label class="field"><span>Hedef süre (sn)</span>
+        <input id="ch-duration" type="number" min="60" max="90"></label>
+      <label class="field"><span>Sahne sayısı</span>
+        <input id="ch-scenes" type="number" min="3" max="10"></label>
+    </div>
+    <label class="field"><span>Ses (ElevenLabs voice ID)</span>
+      <input id="ch-voice" type="text"></label>
+    <label class="field"><span>Görsel stil öneki</span>
+      <textarea id="ch-style" rows="2"></textarea></label>
+    <div class="side-label">Videolar şu platformlara gitsin</div>
+    <div id="ch-platforms" class="platforms">
+      <label><input type="checkbox" value="YOUTUBE"> YouTube</label>
+      <label><input type="checkbox" value="INSTAGRAM"> Instagram</label>
+      <label><input type="checkbox" value="FACEBOOK"> Facebook</label>
+    </div>
+    <label class="field"><span>Instagram/Facebook dili (duplicate koruması — "hepsi" riskli)</span>
+      <select id="ch-metalang">
+        <option value="en">Sadece EN</option>
+        <option value="tr">Sadece TR</option>
+        <option value="es">Sadece ES</option>
+        <option value="">Hepsi (önerilmez)</option>
+      </select></label>
+    <details class="field">
+      <summary>Bu kanalın kendi Meta hesabı (boşsa ortak hesap kullanılır)</summary>
+      <label class="field"><span>Access token</span>
+        <input id="ch-metatoken" type="password" placeholder="değiştirmek için doldur"></label>
+      <label class="field"><span>Facebook Sayfa ID</span>
+        <input id="ch-metapage" type="text"></label>
+      <label class="field"><span>Instagram Business ID</span>
+        <input id="ch-metaig" type="text"></label>
+    </details>
+    <label class="field platforms"><label>
+      <input id="ch-enabled" type="checkbox"> Kanal aktif (zamanlayıcı üretir)</label></label>
+    <div class="actions">
+      <button value="ok" class="btn btn-primary">Kaydet</button>
+      <button value="cancel" class="btn btn-ghost">Vazgeç</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-generate">
   <form method="dialog">
     <h3>Yeni üretim</h3>

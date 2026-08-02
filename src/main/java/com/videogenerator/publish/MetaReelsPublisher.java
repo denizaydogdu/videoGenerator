@@ -26,6 +26,18 @@ public class MetaReelsPublisher implements Publisher {
     private final MetaApiClient client;
     private final String onlyLang; // null = tüm diller
 
+    /** Kanalın kendi Meta hesabı varsa ona özel istemci üretir. */
+    public interface ClientResolver {
+        MetaApiClient forProfile(ChannelProfile profile) throws Exception;
+    }
+
+    private ClientResolver clientResolver; // null = her zaman varsayılan istemci
+
+    public MetaReelsPublisher withClientResolver(ClientResolver resolver) {
+        this.clientResolver = resolver;
+        return this;
+    }
+
     public MetaReelsPublisher(String platform, MetaApiClient client) {
         this(platform, client, null);
     }
@@ -53,9 +65,16 @@ public class MetaReelsPublisher implements Publisher {
     @Override
     public Publication publish(Job job, LangVariant variant, ChannelProfile profile,
                                Path jobDir) throws Exception {
-        if (onlyLang != null && !onlyLang.equals(variant.getLang())) {
+        // Kanal profili config'i ezer: profile.meta.publishLang > meta.publish.lang
+        String effectiveLang = onlyLang;
+        if (profile != null && profile.getMeta() != null
+                && profile.getMeta().getPublishLang() != null
+                && !profile.getMeta().getPublishLang().isBlank()) {
+            effectiveLang = profile.getMeta().getPublishLang();
+        }
+        if (effectiveLang != null && !effectiveLang.equals(variant.getLang())) {
             logger.info("Skipping {} [{}] — {} publishes only '{}' (duplicate guard)",
-                    job.getJobId(), variant.getLang(), platform, onlyLang);
+                    job.getJobId(), variant.getLang(), platform, effectiveLang);
             Publication skip = new Publication();
             skip.setPlatform(platform);
             skip.setStatus("SKIPPED_LANG");
@@ -71,10 +90,15 @@ public class MetaReelsPublisher implements Publisher {
                     "Variant metadata invalid for lang " + variant.getLang());
         }
         String caption = buildCaption(md);
+        MetaApiClient effective = client;
+        if (clientResolver != null && profile != null && profile.getMeta() != null
+                && profile.getMeta().hasCustomAccount()) {
+            effective = clientResolver.forProfile(profile);
+        }
         logger.info("Uploading {} [{}] to {}...", job.getJobId(), variant.getLang(), platform);
         String url = "INSTAGRAM".equals(platform)
-                ? client.publishInstagramReel(render, caption)
-                : client.publishFacebookReel(render, caption);
+                ? effective.publishInstagramReel(render, caption)
+                : effective.publishFacebookReel(render, caption);
 
         Publication pub = new Publication();
         pub.setPlatform(platform);

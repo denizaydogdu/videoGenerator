@@ -49,6 +49,37 @@ public class ChannelStore {
         }
     }
 
+    /** Backoffice'ten düzenlenebilir alanlar — kimlik/token alanları hariç. */
+    private static final java.util.Set<String> EDITABLE_FIELDS = java.util.Set.of(
+            "displayName", "stylePrefix", "voiceId", "niche", "languages",
+            "platforms", "targetDurationSeconds", "sceneCount", "enabled", "meta");
+
+    /**
+     * Whitelist'li alanları mevcut JSON'a merge eder, doğrular ve atomik
+     * yazar. Geçersiz sonuç dosyaya dokunmadan reddedilir.
+     */
+    public ChannelProfile update(String channelId,
+                                 com.google.gson.JsonObject patch) throws IOException {
+        load(channelId); // id doğrulama + mevcut dosyanın geçerliliği
+        Path file = dir.resolve(channelId + ".json");
+        com.google.gson.JsonObject current = gson.fromJson(
+                Files.readString(file), com.google.gson.JsonObject.class);
+        for (String key : patch.keySet()) {
+            if (EDITABLE_FIELDS.contains(key)) {
+                current.add(key, patch.get(key));
+            }
+        }
+        ChannelProfile candidate = gson.fromJson(current, ChannelProfile.class);
+        candidate.validate(); // throws -> dosya değişmeden kalır
+        Path tmp = Files.createTempFile(dir, channelId, ".tmp");
+        Files.writeString(tmp, new com.google.gson.GsonBuilder()
+                .setPrettyPrinting().create().toJson(current));
+        Files.move(tmp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        logger.info("Channel updated: {} ({})", channelId, patch.keySet());
+        return candidate;
+    }
+
     /**
      * Loads all enabled channel profiles in the directory.
      */

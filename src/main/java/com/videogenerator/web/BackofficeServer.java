@@ -103,7 +103,9 @@ public class BackofficeServer {
                     }
                 }
                 case 4 -> {
-                    if (!"jobs".equals(seg[2])) {
+                    if ("channels".equals(seg[2])) {
+                        handleChannel(ex, method, seg[3]);
+                    } else if (!"jobs".equals(seg[2])) {
                         sendError(ex, 404, "Unknown resource");
                     } else if ("generate".equals(seg[3])) {
                         requirePost(ex, method, () -> generate(ex));
@@ -336,6 +338,26 @@ public class BackofficeServer {
                 os.write(buf.array(), 0, read);
                 remaining -= read;
             }
+        }
+    }
+
+    /** GET = profil JSON'u, PATCH = whitelist'li alan güncellemesi. */
+    private void handleChannel(HttpExchange ex, String method, String channelId)
+            throws IOException {
+        switch (method) {
+            case "GET" -> sendJson(ex, 200, gson.toJson(service.channels().load(channelId)));
+            case "PATCH" -> {
+                com.google.gson.JsonObject patch = gson.fromJson(
+                        new String(ex.getRequestBody().readAllBytes(),
+                                java.nio.charset.StandardCharsets.UTF_8),
+                        com.google.gson.JsonObject.class);
+                if (patch == null) {
+                    sendError(ex, 400, "Empty patch body");
+                    return;
+                }
+                sendJson(ex, 200, gson.toJson(service.channels().update(channelId, patch)));
+            }
+            default -> sendError(ex, 405, "Method not allowed");
         }
     }
 

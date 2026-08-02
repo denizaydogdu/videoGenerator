@@ -18,6 +18,47 @@ public class ChannelProfile {
     private int targetDurationSeconds;
     private int sceneCount;
     private boolean enabled;
+    private MetaSpec meta; // opsiyonel — kanal başına IG/FB ayarları
+
+    /**
+     * Kanal başına Meta (Instagram/Facebook) ayarları. publishLang: bu
+     * kanalın IG/FB'sine yalnız bu dil gider (duplicate koruması).
+     * pageId/igUserId: ileride kanal başına ayrı FB sayfası/IG hesabı için
+     * ayrılmış alanlar (şimdilik global config kullanılır).
+     */
+    public static class MetaSpec {
+        private String publishLang;
+        private String pageId;
+        private String igUserId;
+        private String accessToken; // kanal başına token (yoksa global config)
+
+        public String getPublishLang() {
+            return publishLang;
+        }
+
+        public String getPageId() {
+            return pageId;
+        }
+
+        public String getIgUserId() {
+            return igUserId;
+        }
+
+        public String getAccessToken() {
+            return accessToken;
+        }
+
+        /** Bu kanal kendi Meta hesabını mı kullanıyor? */
+        public boolean hasCustomAccount() {
+            return (accessToken != null && !accessToken.isBlank())
+                    || (pageId != null && !pageId.isBlank())
+                    || (igUserId != null && !igUserId.isBlank());
+        }
+    }
+
+    public MetaSpec getMeta() {
+        return meta;
+    }
 
     /**
      * Validates required fields and value ranges.

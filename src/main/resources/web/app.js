@@ -54,6 +54,12 @@ async function loadChannels() {
       badge.textContent = ch.pendingCount;
       li.appendChild(badge);
     }
+    const gear = document.createElement("span");
+    gear.className = "gear";
+    gear.textContent = "⚙";
+    gear.title = "Kanal ayarları";
+    gear.onclick = (e) => { e.stopPropagation(); openChannelSettings(ch.channelId); };
+    li.appendChild(gear);
     li.onclick = () => { state.channel = ch.channelId; showList(); refresh(); };
     list.appendChild(li);
   }
@@ -138,6 +144,63 @@ async function loadJobs() {
 let detailRequestSeq = 0; // hızlı ardışık tıklamalarda eski yanıtı at
 
 const PLATFORM_ICONS = { YOUTUBE: "▶", INSTAGRAM: "📷", FACEBOOK: "ⓕ" };
+
+// ===== Kanal Ayarları =====
+let settingsChannelId = null;
+
+async function openChannelSettings(channelId) {
+  try {
+    const p = await api(`/api/channels/${channelId}`);
+    settingsChannelId = channelId;
+    $("ch-title").textContent = p.displayName || channelId;
+    $("ch-name").value = p.displayName || "";
+    $("ch-langs").value = (p.languages || []).join(", ");
+    $("ch-duration").value = p.targetDurationSeconds;
+    $("ch-scenes").value = p.sceneCount;
+    $("ch-voice").value = p.voiceId || "";
+    $("ch-style").value = p.stylePrefix || "";
+    $("ch-enabled").checked = !!p.enabled;
+    const plats = p.platforms || [];
+    $("ch-platforms").querySelectorAll("input").forEach((i) => {
+      i.checked = plats.includes(i.value);
+    });
+    $("ch-metalang").value = p.meta?.publishLang ?? "en";
+    $("ch-metatoken").value = "";
+    $("ch-metapage").value = p.meta?.pageId || "";
+    $("ch-metaig").value = p.meta?.igUserId || "";
+    $("dlg-channel").showModal();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function saveChannelSettings() {
+  const meta = { publishLang: $("ch-metalang").value };
+  if ($("ch-metatoken").value.trim()) meta.accessToken = $("ch-metatoken").value.trim();
+  if ($("ch-metapage").value.trim()) meta.pageId = $("ch-metapage").value.trim();
+  if ($("ch-metaig").value.trim()) meta.igUserId = $("ch-metaig").value.trim();
+  const patch = {
+    displayName: $("ch-name").value.trim(),
+    languages: $("ch-langs").value.split(",").map((s) => s.trim()).filter(Boolean),
+    targetDurationSeconds: Number($("ch-duration").value),
+    sceneCount: Number($("ch-scenes").value),
+    voiceId: $("ch-voice").value.trim(),
+    stylePrefix: $("ch-style").value.trim(),
+    enabled: $("ch-enabled").checked,
+    platforms: [...$("ch-platforms").querySelectorAll("input:checked")].map((i) => i.value),
+    meta,
+  };
+  try {
+    await api(`/api/channels/${settingsChannelId}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    toast("Kanal ayarları kaydedildi");
+    refresh();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
 
 async function loadJobStats() {
   const box = $("stats-box");
@@ -366,6 +429,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btn-generate").onclick = openGenerateDialog;
   $("dlg-generate").addEventListener("close", () => {
     if ($("dlg-generate").returnValue === "ok") submitGenerate();
+  });
+  $("dlg-channel").addEventListener("close", () => {
+    if ($("dlg-channel").returnValue === "ok") saveChannelSettings();
   });
   refresh();
   setInterval(() => { if (!state.job) refresh(); }, 15000); // arka plan yenileme

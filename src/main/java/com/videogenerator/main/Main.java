@@ -188,6 +188,10 @@ public class Main {
         }
     }
 
+    private static String orDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
     private static void runPublish(String jobId, Configuration config) {
         try {
             var job = buildPublishService(config).publishApproved(jobId);
@@ -223,10 +227,25 @@ public class Main {
                     config.get("meta.page.id", ""), config.get("meta.ig.user.id", ""),
                     5000);
             String metaLang = config.get("meta.publish.lang", "en");
+            // Kanalın kendi Meta hesabı varsa (channels/<id>.json meta bloğu)
+            // ona özel istemci; eksik alanlar global config'ten tamamlanır
+            var metaCache = new java.util.concurrent.ConcurrentHashMap<String, com.videogenerator.publish.MetaApiClient>();
+            com.videogenerator.publish.MetaReelsPublisher.ClientResolver resolver = profile -> {
+                var spec = profile.getMeta();
+                return metaCache.computeIfAbsent(profile.getChannelId(), id ->
+                        new com.videogenerator.publish.MetaApiClient(
+                                new com.videogenerator.publish.GraphHttp(),
+                                orDefault(spec.getAccessToken(), metaToken),
+                                orDefault(spec.getPageId(), config.get("meta.page.id", "")),
+                                orDefault(spec.getIgUserId(), config.get("meta.ig.user.id", "")),
+                                5000));
+            };
             publishers.put("INSTAGRAM",
-                    new com.videogenerator.publish.MetaReelsPublisher("INSTAGRAM", meta, metaLang));
+                    new com.videogenerator.publish.MetaReelsPublisher("INSTAGRAM", meta, metaLang)
+                            .withClientResolver(resolver));
             publishers.put("FACEBOOK",
-                    new com.videogenerator.publish.MetaReelsPublisher("FACEBOOK", meta, metaLang));
+                    new com.videogenerator.publish.MetaReelsPublisher("FACEBOOK", meta, metaLang)
+                            .withClientResolver(resolver));
         }
         return new com.videogenerator.publish.PublishService(
                 jobStore, channelStore, java.util.Map.copyOf(publishers),

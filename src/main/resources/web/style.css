@@ -214,3 +214,16 @@ dialog .field { margin-bottom:16px; }
 .stats-table tr { cursor:default; }
 .stats-link { cursor:pointer; }
 .stats-link:hover { color:var(--primary, #6366F1); text-decoration:underline; }
+
+#channel-list li { display:flex; align-items:center; gap:8px; }
+#channel-list li span:first-child { flex:1; }
+.gear {
+  opacity:0; cursor:pointer; font-size:14px; color:var(--text-dim);
+  transition:opacity 150ms ease;
+}
+#channel-list li:hover .gear { opacity:1; }
+.gear:hover { color:var(--text); }
+.field-row { display:flex; gap:16px; }
+.field-row .field { flex:1; }
+#dlg-channel { max-width:520px; width:90vw; }
+#dlg-channel details summary { cursor:pointer; font-size:13px; color:var(--text-dim); margin-bottom:8px; }

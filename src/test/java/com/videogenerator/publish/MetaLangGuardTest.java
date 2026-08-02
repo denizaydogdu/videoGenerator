@@ -59,6 +59,26 @@ class MetaLangGuardTest {
     }
 
     @Test
+    void channelProfileLangOverridesConfig(@TempDir Path dir) throws Exception {
+        // Config "en" dese de kanal profili "tr" diyorsa profil kazanır
+        Files.createDirectories(dir.resolve("renders"));
+        Files.writeString(dir.resolve("renders/tr.mp4"), "mp4");
+        MetaApiClient client = new MetaApiClient(
+                new MetaApiClientTest.FakeHttp(), "USERTOK", "PAGE1", "IGUSER", 0);
+        MetaReelsPublisher pub = new MetaReelsPublisher("INSTAGRAM", client, "en");
+        com.videogenerator.channel.ChannelProfile profile =
+                new com.google.gson.Gson().fromJson(
+                        "{\"meta\":{\"publishLang\":\"tr\"}}",
+                        com.videogenerator.channel.ChannelProfile.class);
+
+        Publication trResult = pub.publish(Job.create("ch1"), variant("tr"), profile, dir);
+        Publication enResult = pub.publish(Job.create("ch1"), variant("en"), profile, dir);
+
+        assertEquals("PUBLISHED", trResult.getStatus());
+        assertEquals("SKIPPED_LANG", enResult.getStatus());
+    }
+
+    @Test
     void nullLangMeansAllLanguages(@TempDir Path dir) throws Exception {
         Files.createDirectories(dir.resolve("renders"));
         Files.writeString(dir.resolve("renders/tr.mp4"), "mp4");
