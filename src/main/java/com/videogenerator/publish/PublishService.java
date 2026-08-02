@@ -95,7 +95,11 @@ public class PublishService {
                     logger.warn("No publisher for {} — recorded skip", platform);
                     continue;
                 }
-                if (uploadCounter != null && uploadCounter.today() >= dailyUploadLimit) {
+                // Sayaç/limit yalnız YouTube API kotası içindir — Meta/TikTok
+                // yayınları ne sayacı yakar ne de limite takılır
+                boolean countsAgainstLimit = "YOUTUBE".equals(platform);
+                if (countsAgainstLimit
+                        && uploadCounter != null && uploadCounter.today() >= dailyUploadLimit) {
                     // Limit dolunca durum PUBLISHING kalır; ertesi gün
                     // 'publish <jobId>' veya yeni approve tetiği devam ettirir
                     job.setError("Daily upload limit reached (" + dailyUploadLimit + ")");
@@ -111,7 +115,7 @@ public class PublishService {
                     // resume aynı videoyu ikinci kez yükler)
                     variant.getPublications().add(pub);
                     jobStore.save(job);
-                    if (uploadCounter != null) {
+                    if (countsAgainstLimit && uploadCounter != null) {
                         try {
                             uploadCounter.increment();
                         } catch (RuntimeException e) {

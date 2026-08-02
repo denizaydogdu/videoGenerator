@@ -178,8 +178,21 @@ public class Main {
                     "tokens/" + profile.getChannelId());
             return client::uploadVideo;
         });
+        var publishers = new java.util.HashMap<String, com.videogenerator.publish.Publisher>();
+        publishers.put("YOUTUBE", youtube);
+        String metaToken = config.get("meta.access.token", "");
+        if (!metaToken.isBlank()) {
+            var meta = new com.videogenerator.publish.MetaApiClient(
+                    new com.videogenerator.publish.GraphHttp(), metaToken,
+                    config.get("meta.page.id", ""), config.get("meta.ig.user.id", ""),
+                    5000);
+            publishers.put("INSTAGRAM",
+                    new com.videogenerator.publish.MetaReelsPublisher("INSTAGRAM", meta));
+            publishers.put("FACEBOOK",
+                    new com.videogenerator.publish.MetaReelsPublisher("FACEBOOK", meta));
+        }
         return new com.videogenerator.publish.PublishService(
-                jobStore, channelStore, java.util.Map.of("YOUTUBE", youtube),
+                jobStore, channelStore, java.util.Map.copyOf(publishers),
                 new com.videogenerator.publish.UploadCounter(
                         java.nio.file.Path.of(config.getCostsDir())),
                 config.getYouTubeDailyLimit());

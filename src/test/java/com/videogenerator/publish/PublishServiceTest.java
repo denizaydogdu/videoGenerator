@@ -172,6 +172,53 @@ class PublishServiceTest {
     }
 
     @Test
+    void dailyLimitAppliesOnlyToYoutubeNotMeta(@TempDir Path root) throws Exception {
+        // Sayaç YouTube API kotası içindir; IG/FB yayınları onu ne yakmalı
+        // ne de ona takılmalı
+        JobStore store = new JobStore(root.resolve("jobs"));
+        Job job = approvedJob(store, "ch1", "en");
+        job.setApprovedPlatforms(List.of("YOUTUBE", "INSTAGRAM", "FACEBOOK"));
+        store.save(job);
+        AtomicInteger yt = new AtomicInteger();
+        AtomicInteger meta = new AtomicInteger();
+        Publisher ig = simplePublisher("INSTAGRAM", meta);
+        Publisher fb = simplePublisher("FACEBOOK", meta);
+        UploadCounter counter = new UploadCounter(root.resolve("costs"));
+        PublishService svc = new PublishService(store, channels(root),
+                Map.of("YOUTUBE", countingPublisher(yt, "https://yt/"),
+                        "INSTAGRAM", ig, "FACEBOOK", fb),
+                counter, 1); // YouTube limiti 1
+
+        Job done = svc.publishApproved(job.getJobId());
+
+        assertEquals(JobStatus.PUBLISHED, done.getStatus());
+        assertEquals(1, yt.get());
+        assertEquals(2, meta.get(), "Meta yayınları limit 1'e takılmamalı");
+        assertEquals(1, counter.today(), "sayaç yalnız YouTube'u saymalı");
+    }
+
+    private Publisher simplePublisher(String platform, AtomicInteger calls) {
+        return new Publisher() {
+            @Override
+            public String platform() {
+                return platform;
+            }
+
+            @Override
+            public Publication publish(Job job, LangVariant variant,
+                                       com.videogenerator.channel.ChannelProfile profile,
+                                       Path jobDir) {
+                calls.incrementAndGet();
+                Publication p = new Publication();
+                p.setPlatform(platform);
+                p.setStatus("PUBLISHED");
+                p.setUrl("https://" + platform.toLowerCase() + "/x");
+                return p;
+            }
+        };
+    }
+
+    @Test
     void missingPublisherRecordsSkip(@TempDir Path root) throws Exception {
         JobStore store = new JobStore(root.resolve("jobs"));
         Job job = approvedJob(store, "ch1", "en");
