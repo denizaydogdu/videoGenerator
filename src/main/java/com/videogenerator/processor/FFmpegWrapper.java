@@ -351,6 +351,53 @@ public class FFmpegWrapper {
      * @return output file
      * @throws VideoProcessingException if mixing fails
      */
+    /**
+     * Ducking miks filtre grafı. Canlı hata sonrası onarıldı (2026-08-02):
+     * sidechaincompress'te 1. giriş KISILACAK sinyal (müzik), 2. giriş
+     * TETİK sinyaldir (ses) — eski graf tersti ve asplit'in bir çıkışı
+     * bağlantısız kaldığı için FFmpeg 8 reddediyordu. Ses hem tetik hem
+     * miks girişi olduğu için bölünen SES'tir.
+     */
+    static String buildMixFilter(com.videogenerator.model.AudioMixConfig mixConfig,
+                                 double voiceoverDuration) {
+        StringBuilder filter = new StringBuilder();
+        filter.append("[0:a]volume=").append(mixConfig.getVoiceoverVolumeString()).append("[voice];");
+        filter.append("[1:a]volume=").append(mixConfig.getMusicVolumeString()).append("[music_vol];");
+
+        if (mixConfig.isDuckingEnabled()) {
+            filter.append("[voice]asplit[voice_mix][voice_sc];");
+            filter.append("[music_vol][voice_sc]sidechaincompress="
+                    + "threshold=0.03:ratio=4:attack=5:release=200[music_ducked];");
+            filter.append("[voice_mix][music_ducked]amix=inputs=2:duration=first[mixed]");
+        } else {
+            filter.append("[voice][music_vol]amix=inputs=2:duration=first[mixed]");
+        }
+
+        StringBuilder fadeFilter = new StringBuilder();
+        if (mixConfig.isFadeInEnabled()) {
+            fadeFilter.append("afade=t=in:st=0:d=").append(mixConfig.getFadeInDuration());
+        }
+        if (mixConfig.isFadeOutEnabled()) {
+            if (fadeFilter.length() > 0) {
+                fadeFilter.append(",");
+            }
+            double fadeOutStart = Math.max(0, voiceoverDuration - mixConfig.getFadeOutDuration());
+            fadeFilter.append("afade=t=out:st=").append(fadeOutStart)
+                    .append(":d=").append(mixConfig.getFadeOutDuration());
+        }
+        if (fadeFilter.length() > 0) {
+            filter.append(";[mixed]").append(fadeFilter).append("[faded]");
+        } else {
+            filter.append(";[mixed]acopy[faded]");
+        }
+        if (mixConfig.isNormalizeAudio()) {
+            filter.append(";[faded]loudnorm");
+        } else {
+            filter.append(";[faded]acopy");
+        }
+        return filter.toString();
+    }
+
     public File mixVoiceoverAndMusic(String voiceoverPath, String musicPath,
                                     String outputPath, com.videogenerator.model.AudioMixConfig mixConfig)
             throws VideoProcessingException {
@@ -366,59 +413,12 @@ public class FFmpegWrapper {
         command.add("-i");
         command.add(musicPath);
 
-        // Build complex filter for mixing with real ducking
-        StringBuilder filter = new StringBuilder();
-
-        // Volume adjustments
-        filter.append("[0:a]volume=").append(mixConfig.getVoiceoverVolumeString()).append("[voice];");
-        filter.append("[1:a]volume=").append(mixConfig.getMusicVolumeString()).append("[music_vol];");
-
-        // Apply ducking if enabled (sidechain compression)
-        if (mixConfig.isDuckingEnabled()) {
-            // Split music for sidechain
-            filter.append("[music_vol]asplit[music][sc];");
-            // Apply sidechain compression: voice is trigger, music is compressed
-            // When voice plays, music is automatically lowered (ducked)
-            filter.append("[voice][sc]sidechaincompress=threshold=0.03:ratio=4:attack=5:release=200[music_ducked];");
-            // Mix voice with ducked music
-            filter.append("[voice][music_ducked]amix=inputs=2:duration=first[mixed]");
-        } else {
-            // Simple mix without ducking
-            filter.append("[voice][music_vol]amix=inputs=2:duration=first[mixed]");
-        }
-
-        // Add fade in and fade out to mixed audio
-        StringBuilder fadeFilter = new StringBuilder();
-        if (mixConfig.isFadeInEnabled()) {
-            fadeFilter.append("afade=t=in:st=0:d=").append(mixConfig.getFadeInDuration());
-        }
-
-        if (mixConfig.isFadeOutEnabled()) {
-            if (fadeFilter.length() > 0) {
-                fadeFilter.append(",");
-            }
-            // Ensure fade out start is never negative (edge case: very short audio)
-            double fadeOutStart = Math.max(0, voiceoverDuration - mixConfig.getFadeOutDuration());
-            fadeFilter.append("afade=t=out:st=").append(fadeOutStart).append(":d=").append(mixConfig.getFadeOutDuration());
-        }
-
-        if (fadeFilter.length() > 0) {
-            filter.append(";[mixed]").append(fadeFilter).append("[faded]");
-        } else {
-            filter.append(";[mixed]acopy[faded]");
-        }
-
-        // Add normalization if enabled
-        if (mixConfig.isNormalizeAudio()) {
-            filter.append(";[faded]loudnorm");
-        } else {
-            filter.append(";[faded]acopy");
-        }
-
         command.add("-filter_complex");
-        command.add(filter.toString());
+        command.add(buildMixFilter(mixConfig, voiceoverDuration));
 
-        // Output settings
+        // Output settings — -vn: müzik dosyasındaki gömülü kapak resmi
+        // (Suno mp3'leri mjpeg akışı taşıyor) çıktıya sızmasın
+        command.add("-vn");
         command.add("-codec:a");
         command.add("libmp3lame");
         command.add("-q:a");
