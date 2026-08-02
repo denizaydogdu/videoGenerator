@@ -335,8 +335,12 @@ public class BackofficeServer {
         if (n < 1 || n > 99) {
             throw new IllegalArgumentException("Scene number out of range");
         }
-        java.nio.file.Path file = service.jobs().dirFor(jobId)
-                .resolve(String.format("scenes/%02d.png", n));
+        java.nio.file.Path dir = service.jobs().dirFor(jobId);
+        // Eski format: 01.png — Format 2.0 (sahne başına çoklu görsel): 01a.png
+        java.nio.file.Path file = dir.resolve(String.format("scenes/%02d.png", n));
+        if (!java.nio.file.Files.exists(file)) {
+            file = dir.resolve(String.format("scenes/%02da.png", n));
+        }
         if (!java.nio.file.Files.exists(file)) {
             sendError(ex, 404, "Scene not found");
             return;

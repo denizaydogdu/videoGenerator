@@ -98,6 +98,16 @@ class MediaEndpointTest {
     }
 
     @Test
+    void sceneImageFallsBackToMultiImageNaming() throws Exception {
+        // Format 2.0: sahne başına çoklu görsel — 02.png yok, 02a.png var
+        Files.write(jobStore.dirFor(job.getJobId()).resolve("scenes/02a.png"),
+                new byte[]{4, 5, 6, 7});
+        HttpResponse<byte[]> res = get("/api/jobs/" + job.getJobId() + "/scene/2", null);
+        assertEquals(200, res.statusCode());
+        assertEquals(4, res.body().length);
+    }
+
+    @Test
     void invalidSegmentsRejected() throws Exception {
         assertEquals(400, get("/api/jobs/" + job.getJobId() + "/render/EN!", null).statusCode());
         assertEquals(400, get("/api/jobs/" + job.getJobId() + "/scene/abc", null).statusCode());
