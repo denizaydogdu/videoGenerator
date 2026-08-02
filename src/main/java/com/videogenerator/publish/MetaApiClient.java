@@ -47,17 +47,41 @@ public class MetaApiClient {
         this.pollDelayMs = pollDelayMs;
     }
 
-    public String publishInstagramReel(Path video, String caption) throws Exception {
-        Map<String, String> form = new LinkedHashMap<>();
-        form.put("media_type", "REELS");
-        form.put("upload_type", "resumable");
-        form.put("caption", caption);
-        form.put("access_token", userToken);
-        JsonObject container = json(http.postForm(GRAPH + "/" + igUserId + "/media", form));
-        String containerId = require(container, "id", "IG container");
-        String uploadUri = require(container, "uri", "IG upload uri");
+    /**
+     * rupload aralıklı olarak sahte ProcessingFailedError döndürüyor (canlı
+     * gözlem 2026-08-02: aynı dosya bir denemede ret, sonrakinde kabul).
+     * Meta'nın resmî tavsiyesi: başarısız yüklemede YENİ container ile tekrar.
+     */
+    private static final int UPLOAD_ATTEMPTS = 3;
 
-        uploadBinary(uploadUri, userToken, video);
+    public String publishInstagramReel(Path video, String caption) throws Exception {
+        String containerId = null;
+        Exception lastUploadFailure = null;
+        for (int attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
+            Map<String, String> form = new LinkedHashMap<>();
+            form.put("media_type", "REELS");
+            form.put("upload_type", "resumable");
+            form.put("caption", caption);
+            form.put("access_token", userToken);
+            JsonObject container = json(http.postForm(GRAPH + "/" + igUserId + "/media", form));
+            String candidate = require(container, "id", "IG container");
+            String uploadUri = require(container, "uri", "IG upload uri");
+            try {
+                uploadBinary(uploadUri, userToken, video);
+                containerId = candidate;
+                break;
+            } catch (Exception e) {
+                lastUploadFailure = e;
+                logger.warn("IG upload attempt {}/{} failed: {}",
+                        attempt, UPLOAD_ATTEMPTS, e.getMessage());
+                if (pollDelayMs > 0 && attempt < UPLOAD_ATTEMPTS) {
+                    Thread.sleep(pollDelayMs);
+                }
+            }
+        }
+        if (containerId == null) {
+            throw lastUploadFailure;
+        }
         awaitContainerFinished(containerId);
 
         Map<String, String> pub = new LinkedHashMap<>();
@@ -76,14 +100,31 @@ public class MetaApiClient {
 
     public String publishFacebookReel(Path video, String description) throws Exception {
         String token = pageToken();
-        Map<String, String> start = new LinkedHashMap<>();
-        start.put("upload_phase", "start");
-        start.put("access_token", token);
-        JsonObject session = json(http.postForm(GRAPH + "/" + pageId + "/video_reels", start));
-        String videoId = require(session, "video_id", "FB reel session");
-        String uploadUrl = require(session, "upload_url", "FB upload url");
-
-        uploadBinary(uploadUrl, token, video);
+        String videoId = null;
+        Exception lastUploadFailure = null;
+        for (int attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
+            Map<String, String> start = new LinkedHashMap<>();
+            start.put("upload_phase", "start");
+            start.put("access_token", token);
+            JsonObject session = json(http.postForm(GRAPH + "/" + pageId + "/video_reels", start));
+            String candidate = require(session, "video_id", "FB reel session");
+            String uploadUrl = require(session, "upload_url", "FB upload url");
+            try {
+                uploadBinary(uploadUrl, token, video);
+                videoId = candidate;
+                break;
+            } catch (Exception e) {
+                lastUploadFailure = e;
+                logger.warn("FB upload attempt {}/{} failed: {}",
+                        attempt, UPLOAD_ATTEMPTS, e.getMessage());
+                if (pollDelayMs > 0 && attempt < UPLOAD_ATTEMPTS) {
+                    Thread.sleep(pollDelayMs);
+                }
+            }
+        }
+        if (videoId == null) {
+            throw lastUploadFailure;
+        }
 
         Map<String, String> finish = new LinkedHashMap<>();
         finish.put("upload_phase", "finish");

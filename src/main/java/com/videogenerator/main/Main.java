@@ -37,6 +37,10 @@ public class Main {
                     requireArg(args, "publish requires a jobId");
                     runPublish(args[1], config);
                 }
+                case "publish-meta" -> {
+                    requireArg(args, "publish-meta requires a jobId");
+                    runPublishMeta(args[1], args.length > 2 ? args[2] : "en", config);
+                }
                 case "serve" -> runBackoffice(config);
                 case "schedule" -> runSchedule(config);
                 case "validate" -> System.exit(runValidate(config) ? 0 : 1);
@@ -150,6 +154,38 @@ public class Main {
         }
         System.out.println(ok ? "Validation OK" : "Validation FAILED");
         return ok;
+    }
+
+    /** Yayınlanmış bir işin tek dilini IG+FB'ye geriye dönük gönderir. */
+    private static void runPublishMeta(String jobId, String lang, Configuration config) {
+        try {
+            String metaToken = config.get("meta.access.token", "");
+            if (metaToken.isBlank()) {
+                System.out.println("ERROR: meta.access.token not configured");
+                System.exit(1);
+            }
+            var meta = new com.videogenerator.publish.MetaApiClient(
+                    new com.videogenerator.publish.GraphHttp(), metaToken,
+                    config.get("meta.page.id", ""), config.get("meta.ig.user.id", ""),
+                    5000);
+            var publishers = java.util.Map.<String, com.videogenerator.publish.Publisher>of(
+                    "INSTAGRAM", new com.videogenerator.publish.MetaReelsPublisher("INSTAGRAM", meta),
+                    "FACEBOOK", new com.videogenerator.publish.MetaReelsPublisher("FACEBOOK", meta));
+            var added = com.videogenerator.publish.MetaBackfill.run(
+                    new com.videogenerator.job.JobStore(
+                            java.nio.file.Path.of(config.getJobsDir())),
+                    new com.videogenerator.channel.ChannelStore(
+                            java.nio.file.Path.of(config.getChannelsDir())),
+                    jobId, lang, publishers);
+            if (added.isEmpty()) {
+                System.out.println("Nothing to do — already published on IG+FB");
+            }
+            added.forEach(p -> System.out.println(p.getPlatform() + " -> " + p.getUrl()));
+        } catch (Exception e) {
+            logger.error("publish-meta failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
     }
 
     private static void runPublish(String jobId, Configuration config) {

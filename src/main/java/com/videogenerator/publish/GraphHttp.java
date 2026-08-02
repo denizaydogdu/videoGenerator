@@ -46,7 +46,10 @@ public class GraphHttp implements MetaApiClient.Http {
     public String postBinary(String url, Map<String, String> headers, Path file)
             throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofMinutes(10));
+                .timeout(Duration.ofMinutes(10))
+                // Canlı bulgu (2026-08-02): rupload octet-stream ister; yoksa
+                // yanıltıcı ProcessingFailedError döner
+                .header("Content-Type", "application/octet-stream");
         headers.forEach(builder::header);
         HttpRequest req = builder
                 .POST(HttpRequest.BodyPublishers.ofFile(file)).build();

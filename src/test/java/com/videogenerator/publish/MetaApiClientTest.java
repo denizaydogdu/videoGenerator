@@ -108,6 +108,32 @@ class MetaApiClientTest {
     }
 
     @Test
+    void igUploadRetriesWithFreshContainer(@TempDir Path dir) throws Exception {
+        // rupload flakiness: ilk yükleme reddedilirse YENİ container ile tekrar
+        Path video = dir.resolve("v.mp4");
+        Files.writeString(video, "mp4");
+        FakeHttp http = new FakeHttp() {
+            int uploads = 0;
+
+            @Override
+            public String postBinary(String url, Map<String, String> headers, Path file) {
+                if (++uploads == 1) {
+                    calls.add("BIN-FAIL " + url);
+                    throw new IllegalStateException("ProcessingFailedError");
+                }
+                return super.postBinary(url, headers, file);
+            }
+        };
+
+        String url = client(http).publishInstagramReel(video, "c");
+
+        assertEquals("https://www.instagram.com/reel/ABC/", url);
+        long containers = http.calls.stream()
+                .filter(c -> c.contains("/IGUSER/media ") ).count();
+        assertEquals(2, containers, "her deneme yeni container açmalı");
+    }
+
+    @Test
     void igErrorStatusFailsInsteadOfPublishing(@TempDir Path dir) throws Exception {
         Path video = dir.resolve("v.mp4");
         Files.writeString(video, "mp4");

@@ -102,6 +102,9 @@ public class KenBurnsRenderer {
                 "-map", "[vout]", "-map", sceneImages.size() + ":a",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-b:a", "192k",
+                // faststart: moov öne — Instagram/Facebook transcoder'ı moov
+                // sonda olan mp4'leri reddedebiliyor (canlı bulgu 2026-08-02)
+                "-movflags", "+faststart",
                 "-shortest", "-y", out.toString()));
 
         logger.info("Rendering {} scenes -> {}", sceneImages.size(), out.getFileName());
