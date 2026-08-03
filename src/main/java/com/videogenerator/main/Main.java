@@ -41,6 +41,7 @@ public class Main {
                     requireArg(args, "publish-meta requires a jobId");
                     runPublishMeta(args[1], args.length > 2 ? args[2] : "en", config);
                 }
+                case "tiktok-auth" -> runTikTokAuth(config);
                 case "serve" -> runBackoffice(config);
                 case "schedule" -> runSchedule(config);
                 case "validate" -> System.exit(runValidate(config) ? 0 : 1);
@@ -188,6 +189,52 @@ public class Main {
         }
     }
 
+    /** Config'e göre sandbox veya prod TikTok istemcisi kurar. */
+    private static com.videogenerator.publish.TikTokApiClient buildTikTokClient(
+            Configuration config) {
+        boolean sandbox = config.getBoolean("tiktok.use.sandbox", true);
+        String key = sandbox ? config.get("tiktok.sandbox.client.key", "")
+                : config.get("tiktok.client.key", "");
+        String secret = sandbox ? config.get("tiktok.sandbox.client.secret", "")
+                : config.get("tiktok.client.secret", "");
+        if (key.isBlank()) {
+            return null;
+        }
+        return new com.videogenerator.publish.TikTokApiClient(
+                new com.videogenerator.publish.TikTokHttp(), key, secret,
+                config.get("tiktok.redirect.uri", ""),
+                java.nio.file.Path.of("config/tokens/tiktok-"
+                        + (sandbox ? "sandbox" : "prod") + ".json"),
+                5000);
+    }
+
+    /**
+     * Tek seferlik TikTok yetkilendirmesi: adresi yazdırır, kullanıcı
+     * tarayıcıda onaylar, callback sayfasındaki kodu terminale yapıştırır.
+     */
+    private static void runTikTokAuth(Configuration config) {
+        try {
+            var client = buildTikTokClient(config);
+            if (client == null) {
+                System.out.println("ERROR: tiktok client key not configured");
+                System.exit(1);
+            }
+            String url = client.authorizationUrl("st" + System.currentTimeMillis());
+            System.out.println("========================================");
+            System.out.println("1) Bu adresi tarayıcıda aç ve TikTok hesabıyla onayla:");
+            System.out.println(url);
+            System.out.println("2) Açılan sayfadaki kodu buraya yapıştır ve Enter'a bas:");
+            System.out.print("> ");
+            String code = new java.util.Scanner(System.in).nextLine().trim();
+            client.exchangeCode(code);
+            System.out.println("TikTok yetkilendirme TAMAM — token kaydedildi.");
+        } catch (Exception e) {
+            logger.error("tiktok-auth failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
     private static String orDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
@@ -246,6 +293,15 @@ public class Main {
             publishers.put("FACEBOOK",
                     new com.videogenerator.publish.MetaReelsPublisher("FACEBOOK", meta, metaLang)
                             .withClientResolver(resolver));
+        }
+        var tiktok = buildTikTokClient(config);
+        if (tiktok != null) {
+            publishers.put("TIKTOK", new com.videogenerator.publish.TikTokPublisher(
+                    tiktok,
+                    config.get("tiktok.publish.lang", "en"),
+                    config.get("tiktok.privacy.level", "SELF_ONLY"),
+                    config.get("tiktok.profile.url",
+                            "https://www.tiktok.com/@unsolvedfiles007")));
         }
         return new com.videogenerator.publish.PublishService(
                 jobStore, channelStore, java.util.Map.copyOf(publishers),
