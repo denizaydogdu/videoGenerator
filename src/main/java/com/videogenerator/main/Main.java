@@ -42,6 +42,7 @@ public class Main {
                     runPublishMeta(args[1], args.length > 2 ? args[2] : "en", config);
                 }
                 case "tiktok-auth" -> runTikTokAuth(config);
+                case "pinterest-auth" -> runPinterestAuth(config);
                 case "pinterest-batch" -> {
                     requireArg(args, "pinterest-batch requires: <count> <niche prompt...>");
                     if (args.length < 3) {
@@ -245,6 +246,44 @@ public class Main {
         }
     }
 
+    private static com.videogenerator.pinterest.PinterestApiClient buildPinterestClient(
+            Configuration config) {
+        String key = config.get("pinterest.client.id", "");
+        if (key.isBlank()) {
+            return null;
+        }
+        return new com.videogenerator.pinterest.PinterestApiClient(
+                new com.videogenerator.pinterest.PinterestHttp(), key,
+                config.get("pinterest.client.secret", ""),
+                config.get("pinterest.redirect.uri", ""),
+                java.nio.file.Path.of("config/tokens/pinterest.json"),
+                0);
+    }
+
+    /** Tek seferlik Pinterest yetkilendirmesi — tiktok-auth ile aynı akış. */
+    private static void runPinterestAuth(Configuration config) {
+        try {
+            var client = buildPinterestClient(config);
+            if (client == null) {
+                System.out.println("ERROR: pinterest.client.id not configured");
+                System.exit(1);
+            }
+            String url = client.authorizationUrl("st" + System.currentTimeMillis());
+            System.out.println("========================================");
+            System.out.println("1) Bu adresi tarayıcıda aç ve Pinterest hesabıyla onayla:");
+            System.out.println(url);
+            System.out.println("2) Açılan sayfadaki kodu buraya yapıştır ve Enter'a bas:");
+            System.out.print("> ");
+            String code = new java.util.Scanner(System.in).nextLine().trim();
+            client.exchangeCode(code);
+            System.out.println("Pinterest yetkilendirme TAMAM — token kaydedildi.");
+        } catch (Exception e) {
+            logger.error("pinterest-auth failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
     private static String orDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
@@ -425,12 +464,40 @@ public class Main {
             var server = new com.videogenerator.web.BackofficeServer(
                     service, launcher, publishLauncher, config.getBackofficePort())
                     .withStats(buildStatsCollector(config));
+
+            var pinterestExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+            var pinterestClient = buildPinterestClient(config);
+            if (pinterestClient != null) {
+                var pinterestService = new com.videogenerator.pinterest.PinterestPublishService(
+                        pinterestClient, config.get("pinterest.board.name", "Small Space Living"),
+                        java.nio.file.Path.of(config.get("pinterest.output.dir", "output/pinterest")));
+                com.videogenerator.web.BackofficeServer.PinterestBatchLauncher pinterestGenerator =
+                        (niche, count) -> pinterestExecutor.submit(() -> {
+                            try {
+                                var gen = new com.videogenerator.pinterest.PinterestBatchGenerator(
+                                        new com.videogenerator.api.OpenAiGptClient(),
+                                        new com.videogenerator.api.ImageApiClient());
+                                var outDir = java.nio.file.Path.of(
+                                        config.get("pinterest.output.dir", "output/pinterest"),
+                                        "batch-" + System.currentTimeMillis());
+                                gen.generateBatch(niche, count, outDir);
+                            } catch (Exception e) {
+                                logger.error("Pinterest batch generation failed", e);
+                            }
+                        });
+                server.withPinterest(pinterestService, pinterestGenerator);
+                logger.info("Pinterest backoffice section enabled");
+            } else {
+                logger.info("Pinterest not configured (pinterest.client.id empty) — section disabled");
+            }
+
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 server.stop();
                 pipelineExecutor.shutdownNow();
                 publishExecutor.shutdownNow();
+                pinterestExecutor.shutdownNow();
             }));
 
             System.out.println("========================================");

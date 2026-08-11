@@ -16,10 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Pinterest pin fikirleri (başlık + görsel + açıklama) üretir — yalnız
- * MANUEL doğrulama aşaması için. Otomatik yayın (Pinterest API/OAuth)
- * kasıtlı olarak yok: niş/format sinyali doğrulanmadan otomasyona
- * yatırım yapmıyoruz (bkz. memory: fal.ai kararı, aynı prensip).
+ * Pinterest pin fikirleri (başlık + görsel + açıklama + alt text) üretir.
+ * Manifest her pin için published/url alanları taşır — backoffice'in
+ * yayın durumunu takip etmesi için (bkz. PinterestPublishService).
  *
  * Çıktıya gerçek ürün linki EKLEMEZ — affiliate onayı (Amazon Associates)
  * gelene ve kullanıcı gerçek ürünleri SiteStripe ile seçene kadar
@@ -34,7 +33,8 @@ public class PinterestBatchGenerator {
     private final ImageGenerator imageGen;
     private final Gson gson = new Gson();
 
-    public record Pin(String title, String imagePrompt, String description, String file) {
+    public record Pin(String title, String imagePrompt, String description,
+                      String altText, String file) {
     }
 
     public PinterestBatchGenerator(LlmClient llm, ImageGenerator imageGen) {
@@ -55,8 +55,11 @@ public class PinterestBatchGenerator {
                 - "description": Pinterest description (150-300 chars) with a natural
                   product recommendation angle and 3-5 hashtags. Do NOT invent fake
                   prices, fake brand names, or URLs.
+                - "altText": short objective description of the image for screen
+                  readers (under 150 chars, no hashtags, describe what's visible)
 
-                JSON shape: {"pins":[{"title":"...","imagePrompt":"...","description":"..."}]}
+                JSON shape: {"pins":[{"title":"...","imagePrompt":"...",
+                "description":"...","altText":"..."}]}
                 """, count, nichePrompt);
 
         String raw = LlmJson.strip(llm.complete(SYSTEM, user));
@@ -84,18 +87,21 @@ public class PinterestBatchGenerator {
             String title = requireField(p, "title", i);
             String imagePrompt = requireField(p, "imagePrompt", i);
             String description = requireField(p, "description", i);
+            String altText = requireField(p, "altText", i);
 
             String fileName = String.format("pin-%02d.png", i + 1);
             Path imgPath = outDir.resolve(fileName);
             logger.info("{}/{} generating: {}", i + 1, count, title);
             imageGen.generate(imagePrompt, imgPath);
 
-            pins.add(new Pin(title, imagePrompt, description, fileName));
+            pins.add(new Pin(title, imagePrompt, description, altText, fileName));
 
             JsonObject entry = new JsonObject();
             entry.addProperty("file", fileName);
             entry.addProperty("title", title);
             entry.addProperty("description", description);
+            entry.addProperty("altText", altText);
+            entry.addProperty("published", false);
             manifest.add(entry);
         }
 

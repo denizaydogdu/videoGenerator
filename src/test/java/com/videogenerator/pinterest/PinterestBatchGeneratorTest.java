@@ -18,10 +18,12 @@ class PinterestBatchGeneratorTest {
         {"pins":[
           {"title":"Tiny Living Room Before & After",
            "imagePrompt":"photorealistic staged living room, no people",
-           "description":"See how a few swaps transform a cramped room. #homedecor #smallspace"},
+           "description":"See how a few swaps transform a cramped room. #homedecor #smallspace",
+           "altText":"Small living room with compact sofa and layered lighting"},
           {"title":"Best 5 Products for a Cozy Bedroom",
            "imagePrompt":"photorealistic staged bedroom, no people",
-           "description":"Five practical finds for a restful bedroom. #bedroomdecor #cozyhome"}
+           "description":"Five practical finds for a restful bedroom. #bedroomdecor #cozyhome",
+           "altText":"Cozy small bedroom with storage bed and slim nightstand"}
         ]}""";
 
     private LlmClient fakeLlm(String json) {
@@ -60,8 +62,14 @@ class PinterestBatchGeneratorTest {
         var manifest = new Gson().fromJson(Files.readString(manifestPath),
                 com.google.gson.JsonArray.class);
         assertEquals(2, manifest.size());
-        assertEquals("pin-01.png",
-                manifest.get(0).getAsJsonObject().get("file").getAsString());
+        var first = manifest.get(0).getAsJsonObject();
+        assertEquals("pin-01.png", first.get("file").getAsString());
+        assertEquals("Small living room with compact sofa and layered lighting",
+                first.get("altText").getAsString());
+        assertFalse(first.get("published").getAsBoolean(),
+                "yeni üretilen pin henüz yayınlanmamış olmalı");
+        assertEquals("Small living room with compact sofa and layered lighting",
+                pins.get(0).altText());
     }
 
     @Test

@@ -29,6 +29,13 @@
     </div>
 
     <div class="side-section">
+      <div class="side-label">Diğer kanallar</div>
+      <ul class="side-list">
+        <li id="nav-pinterest">Pinterest</li>
+      </ul>
+    </div>
+
+    <div class="side-section">
       <div class="side-label">Ayarlar</div>
       <ul class="side-list">
         <li id="nav-settings">Kanal ayarları</li>
@@ -49,6 +56,14 @@
     </header>
 
     <section id="job-grid" class="grid"></section>
+
+    <section id="pinterest-view" class="pinterest-view hidden">
+      <div class="pinterest-toolbar">
+        <button id="btn-pinterest-generate" class="btn btn-primary">+ Yeni parti üret</button>
+        <button id="btn-pinterest-refresh" class="btn btn-secondary">↻ Yenile</button>
+      </div>
+      <div id="pinterest-batches"></div>
+    </section>
 
     <section id="job-detail" class="detail hidden">
       <button id="btn-back" class="btn btn-ghost">← Listeye dön</button>
@@ -142,6 +157,25 @@
       <input id="ch-enabled" type="checkbox"> Kanal aktif (zamanlayıcı üretir)</label></label>
     <div class="actions">
       <button value="ok" class="btn btn-primary">Kaydet</button>
+      <button value="cancel" class="btn btn-ghost">Vazgeç</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-pinterest-generate">
+  <form method="dialog">
+    <h3>Yeni Pinterest partisi</h3>
+    <label class="field">
+      <span>Niş / tema açıklaması</span>
+      <textarea id="pin-niche" rows="3"
+        placeholder="cozy small-space home decor — before/after room makeovers, budget upgrades"></textarea>
+    </label>
+    <label class="field">
+      <span>Pin sayısı</span>
+      <input id="pin-count" type="number" min="1" max="20" value="10">
+    </label>
+    <div class="actions">
+      <button value="ok" class="btn btn-primary">Üretimi başlat</button>
       <button value="cancel" class="btn btn-ghost">Vazgeç</button>
     </div>
   </form>

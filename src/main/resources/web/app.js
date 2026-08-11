@@ -6,6 +6,7 @@ const state = {
   status: "",      // seçili durum filtresi ("" = tümü)
   job: null,       // açık iş (detay görünümü)
   lang: null,      // seçili dil sekmesi
+  view: "jobs",    // "jobs" | "pinterest"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -256,7 +257,9 @@ function showList() {
   // Detay panelini kapat (yenileme YAPMADAN) — kenar menü gezinmeleri
   // kendi refresh'ini çağırır, çift istek olmasın
   state.job = null;
+  state.view = "jobs";
   $("job-detail").classList.add("hidden");
+  $("pinterest-view").classList.add("hidden");
   $("job-grid").classList.remove("hidden");
   $("page-title").textContent = "İşler";
   $("player").pause?.();
@@ -390,6 +393,116 @@ async function submitGenerate() {
   }
 }
 
+// ---------- Pinterest ----------
+function showPinterestView() {
+  state.job = null;
+  state.view = "pinterest";
+  $("job-grid").classList.add("hidden");
+  $("job-detail").classList.add("hidden");
+  $("pinterest-view").classList.remove("hidden");
+  $("page-title").textContent = "Pinterest";
+  $("player").pause?.();
+}
+
+async function loadPinterestBatches() {
+  const container = $("pinterest-batches");
+  try {
+    const batches = await api("/api/pinterest/batches");
+    container.innerHTML = "";
+    if (!batches.length) {
+      container.innerHTML = '<div class="empty">Henüz parti yok. "+ Yeni parti üret" ile başlat.</div>';
+      return;
+    }
+    for (const batch of batches) {
+      const section = document.createElement("div");
+      section.className = "pinterest-batch";
+      const heading = document.createElement("div");
+      heading.className = "pinterest-batch-title";
+      const publishedCount = batch.pins.filter((p) => p.published).length;
+      heading.textContent = `${batch.id} — ${publishedCount}/${batch.pins.length} yayında`;
+      section.appendChild(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "pinterest-pin-grid";
+      batch.pins.forEach((pin, index) => {
+        const card = document.createElement("div");
+        card.className = "pinterest-pin-card";
+        const img = document.createElement("img");
+        img.loading = "lazy";
+        img.src = `/api/pinterest/batches/${batch.id}/images/${pin.file}`;
+        const title = document.createElement("div");
+        title.className = "pinterest-pin-title";
+        title.textContent = pin.title;
+        const desc = document.createElement("div");
+        desc.className = "pinterest-pin-desc";
+        desc.textContent = pin.description;
+        card.append(img, title, desc);
+
+        if (pin.published && pin.url) {
+          const link = document.createElement("a");
+          link.className = "btn btn-secondary btn-small";
+          link.textContent = "Pinterest'te gör ↗";
+          link.href = pin.url;
+          link.target = "_blank";
+          card.appendChild(link);
+        } else if (pin.published) {
+          const badge = document.createElement("span");
+          badge.className = "chip";
+          badge.textContent = "Yayında";
+          card.appendChild(badge);
+        } else {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-primary btn-small";
+          btn.textContent = "Yayınla";
+          btn.onclick = async () => {
+            btn.disabled = true;
+            btn.textContent = "Yayınlanıyor…";
+            try {
+              await api(`/api/pinterest/batches/${batch.id}/pins/${index}/publish`, {
+                method: "POST",
+              });
+              toast("Pin yayınlandı");
+              loadPinterestBatches();
+            } catch (e) {
+              toast(e.message, true);
+              btn.disabled = false;
+              btn.textContent = "Yayınla";
+            }
+          };
+          card.appendChild(btn);
+        }
+        grid.appendChild(card);
+      });
+      section.appendChild(grid);
+      container.appendChild(section);
+    }
+  } catch (e) {
+    container.innerHTML = "";
+    toast(e.message, true);
+  }
+}
+
+function openPinterestGenerateDialog() {
+  const dlg = $("dlg-pinterest-generate");
+  dlg.returnValue = "";
+  dlg.showModal();
+}
+
+async function submitPinterestGenerate() {
+  const niche = $("pin-niche").value.trim();
+  const count = Number($("pin-count").value) || 10;
+  if (!niche) return;
+  try {
+    await api("/api/pinterest/generate", {
+      method: "POST",
+      body: JSON.stringify({ niche, count }),
+    });
+    toast(`Parti kuyruğa alındı (${count} pin) — birkaç dakika sürebilir, sonra Yenile'ye bas`);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
 // ---------- Wiring ----------
 function refresh() {
   loadChannels().catch((e) => toast(e.message, true));
@@ -416,6 +529,15 @@ document.addEventListener("DOMContentLoaded", () => {
     showList();
     refresh();
   };
+  $("nav-pinterest").onclick = () => {
+    showPinterestView();
+    loadPinterestBatches();
+  };
+  $("btn-pinterest-generate").onclick = openPinterestGenerateDialog;
+  $("btn-pinterest-refresh").onclick = loadPinterestBatches;
+  $("dlg-pinterest-generate").addEventListener("close", () => {
+    if ($("dlg-pinterest-generate").returnValue === "ok") submitPinterestGenerate();
+  });
   $("nav-settings").onclick = () => {
     // Seçili kanal (yoksa ilk kanal) için ayarları aç
     const ch = state.channel
@@ -436,5 +558,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if ($("dlg-channel").returnValue === "ok") saveChannelSettings();
   });
   refresh();
-  setInterval(() => { if (!state.job) refresh(); }, 15000); // arka plan yenileme
+  setInterval(() => {
+    if (state.job) return;
+    if (state.view === "pinterest") loadPinterestBatches();
+    else refresh();
+  }, 15000); // arka plan yenileme
 });

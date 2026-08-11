@@ -37,15 +37,30 @@ public class BackofficeServer {
         void launch(String channelId);
     }
 
+    /** Pinterest yeni parti üretimini arka planda tetikler (video JobLauncher'ıyla aynı desen). */
+    public interface PinterestBatchLauncher {
+        void launch(String nichePrompt, int count);
+    }
+
     private final JobService service;
     private final JobLauncher launcher;
     private final JobLauncher publishLauncher;
     private final int requestedPort;
     private final Gson gson = new Gson();
     private StatsCollector statsCollector; // opsiyonel — yoksa /stats 503
+    private com.videogenerator.pinterest.PinterestPublishService pinterestService; // opsiyonel
+    private PinterestBatchLauncher pinterestGenerator; // opsiyonel
 
     public BackofficeServer withStats(StatsCollector collector) {
         this.statsCollector = collector;
+        return this;
+    }
+
+    public BackofficeServer withPinterest(
+            com.videogenerator.pinterest.PinterestPublishService pinterestService,
+            PinterestBatchLauncher pinterestGenerator) {
+        this.pinterestService = pinterestService;
+        this.pinterestGenerator = pinterestGenerator;
         return this;
     }
     private HttpServer httpServer;
@@ -93,6 +108,10 @@ public class BackofficeServer {
             String[] seg = ex.getRequestURI().getRawPath().split("/");
             // /api/channels → ["", "api", "channels"]
             String method = ex.getRequestMethod();
+            if (seg.length >= 3 && "pinterest".equals(seg[2])) {
+                handlePinterestApi(ex, method, seg);
+                return;
+            }
             switch (seg.length) {
                 case 3 -> {
                     switch (seg[2]) {
@@ -285,6 +304,100 @@ public class BackofficeServer {
         }
         service.updateMetadata(jobId, lang, metadata);
         sendNoContent(ex);
+    }
+
+    // ==================== Pinterest ====================
+
+    private void handlePinterestApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (pinterestService == null) {
+            sendError(ex, 503, "Pinterest not configured");
+            return;
+        }
+        switch (seg.length) {
+            case 4 -> {
+                switch (seg[3]) {
+                    case "batches" -> requireGet(ex, method, () ->
+                            sendJson(ex, 200, gson.toJson(pinterestUnchecked(pinterestService::listBatches))));
+                    case "generate" -> requirePost(ex, method, () -> generatePinterestBatch(ex));
+                    default -> sendError(ex, 404, "Unknown resource");
+                }
+            }
+            case 7 -> {
+                if (!"batches".equals(seg[3]) || !"images".equals(seg[5])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requireGet(ex, method, () -> servePinterestImage(ex, seg[4], seg[6]));
+            }
+            case 8 -> {
+                if (!"batches".equals(seg[3]) || !"pins".equals(seg[5])
+                        || !"publish".equals(seg[7])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requirePost(ex, method, () -> publishPinterestPin(ex, seg[4], seg[6]));
+            }
+            default -> sendError(ex, 404, "Unknown resource");
+        }
+    }
+
+    private interface ThrowingSupplier<T> {
+        T get() throws Exception;
+    }
+
+    /** Checked exception'ı domain tipine göre korur, aksi halde RuntimeException'a sarar. */
+    private <T> T pinterestUnchecked(ThrowingSupplier<T> op) {
+        try {
+            return op.get();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void generatePinterestBatch(HttpExchange ex) throws IOException {
+        JsonObject body = readJson(ex);
+        String niche = body.has("niche") ? body.get("niche").getAsString() : null;
+        if (niche == null || niche.isBlank()) {
+            throw new IllegalArgumentException("niche is required");
+        }
+        int count = body.has("count") ? body.get("count").getAsInt() : 10;
+        if (pinterestGenerator == null) {
+            sendError(ex, 503, "Pinterest generator not configured");
+            return;
+        }
+        pinterestGenerator.launch(niche, count);
+        sendJson(ex, 202, "{\"queued\":true}");
+    }
+
+    private void publishPinterestPin(HttpExchange ex, String batchId, String indexStr)
+            throws IOException {
+        int index;
+        try {
+            index = Integer.parseInt(indexStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid pin index");
+        }
+        var updated = pinterestUnchecked(() -> pinterestService.publishPin(batchId, index));
+        sendJson(ex, 200, gson.toJson(updated));
+    }
+
+    private void servePinterestImage(HttpExchange ex, String batchId, String file)
+            throws IOException {
+        java.nio.file.Path path = pinterestUnchecked(
+                () -> pinterestService.imageFile(batchId, file));
+        if (!java.nio.file.Files.exists(path)) {
+            sendError(ex, 404, "Image not found");
+            return;
+        }
+        byte[] bytes = java.nio.file.Files.readAllBytes(path);
+        ex.getResponseHeaders().set("Content-Type", "image/png");
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
+        }
     }
 
     // ==================== media ====================
