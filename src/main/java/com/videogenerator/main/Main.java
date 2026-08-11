@@ -42,6 +42,16 @@ public class Main {
                     runPublishMeta(args[1], args.length > 2 ? args[2] : "en", config);
                 }
                 case "tiktok-auth" -> runTikTokAuth(config);
+                case "pinterest-batch" -> {
+                    requireArg(args, "pinterest-batch requires: <count> <niche prompt...>");
+                    if (args.length < 3) {
+                        System.out.println("ERROR: usage: pinterest-batch <count> <niche prompt...>");
+                        System.exit(1);
+                    }
+                    runPinterestBatch(Integer.parseInt(args[1]),
+                            String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length)),
+                            config);
+                }
                 case "serve" -> runBackoffice(config);
                 case "schedule" -> runSchedule(config);
                 case "validate" -> System.exit(runValidate(config) ? 0 : 1);
@@ -237,6 +247,32 @@ public class Main {
 
     private static String orDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    /**
+     * Pinterest pin fikirleri üretir (manuel doğrulama aşaması — otomatik
+     * yayın YOK). Çıktı: output/pinterest/batch-<epoch>/pin-NN.png +
+     * manifest.json (başlık + açıklama, link yok).
+     */
+    private static void runPinterestBatch(int count, String niche, Configuration config) {
+        try {
+            var gpt = new com.videogenerator.api.OpenAiGptClient();
+            var img = new com.videogenerator.api.ImageApiClient();
+            var generator = new com.videogenerator.pinterest.PinterestBatchGenerator(gpt, img);
+            var outDir = java.nio.file.Path.of("output/pinterest",
+                    "batch-" + System.currentTimeMillis());
+            var pins = generator.generateBatch(niche, count, outDir);
+            System.out.println("========================================");
+            System.out.println("Pinterest batch ready: " + pins.size() + " pins");
+            System.out.println("Dir: " + outDir.toAbsolutePath());
+            System.out.println("Not: linksiz — Amazon Associates onayindan sonra");
+            System.out.println("SiteStripe ile gercek urun linki eklenmeli.");
+            System.out.println("========================================");
+        } catch (Exception e) {
+            logger.error("pinterest-batch failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
     }
 
     private static void runPublish(String jobId, Configuration config) {
@@ -495,6 +531,9 @@ public class Main {
         System.out.println("  serve                - Start the backoffice review console (localhost)");
         System.out.println("  schedule             - Daemon: daily generation for all enabled channels");
         System.out.println("  validate             - Check ffmpeg, API keys and channel profiles");
+        System.out.println("  publish-meta <jobId> [lang] - Backfill IG/FB for an already-published job");
+        System.out.println("  tiktok-auth          - One-time TikTok OAuth authorization");
+        System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (manual posting)");
         System.out.println("  help                 - Show this help");
     }
 }
