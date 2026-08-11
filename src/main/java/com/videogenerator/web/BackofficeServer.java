@@ -51,6 +51,14 @@ public class BackofficeServer {
     private com.videogenerator.pinterest.PinterestPublishService pinterestService; // opsiyonel
     private PinterestBatchLauncher pinterestGenerator; // opsiyonel
 
+    /** Velzon tweet partisi üretimini arka planda tetikler. */
+    public interface VelzonBatchLauncher {
+        void launch(String topicPrompt, int count);
+    }
+
+    private com.videogenerator.velzon.VelzonPublishService velzonService; // opsiyonel
+    private VelzonBatchLauncher velzonGenerator; // opsiyonel
+
     public BackofficeServer withStats(StatsCollector collector) {
         this.statsCollector = collector;
         return this;
@@ -61,6 +69,14 @@ public class BackofficeServer {
             PinterestBatchLauncher pinterestGenerator) {
         this.pinterestService = pinterestService;
         this.pinterestGenerator = pinterestGenerator;
+        return this;
+    }
+
+    public BackofficeServer withVelzon(
+            com.videogenerator.velzon.VelzonPublishService velzonService,
+            VelzonBatchLauncher velzonGenerator) {
+        this.velzonService = velzonService;
+        this.velzonGenerator = velzonGenerator;
         return this;
     }
     private HttpServer httpServer;
@@ -110,6 +126,10 @@ public class BackofficeServer {
             String method = ex.getRequestMethod();
             if (seg.length >= 3 && "pinterest".equals(seg[2])) {
                 handlePinterestApi(ex, method, seg);
+                return;
+            }
+            if (seg.length >= 3 && "velzon".equals(seg[2])) {
+                handleVelzonApi(ex, method, seg);
                 return;
             }
             switch (seg.length) {
@@ -318,7 +338,7 @@ public class BackofficeServer {
             case 4 -> {
                 switch (seg[3]) {
                     case "batches" -> requireGet(ex, method, () ->
-                            sendJson(ex, 200, gson.toJson(pinterestUnchecked(pinterestService::listBatches))));
+                            sendJson(ex, 200, gson.toJson(unchecked(pinterestService::listBatches))));
                     case "generate" -> requirePost(ex, method, () -> generatePinterestBatch(ex));
                     default -> sendError(ex, 404, "Unknown resource");
                 }
@@ -347,7 +367,7 @@ public class BackofficeServer {
     }
 
     /** Checked exception'ı domain tipine göre korur, aksi halde RuntimeException'a sarar. */
-    private <T> T pinterestUnchecked(ThrowingSupplier<T> op) {
+    private <T> T unchecked(ThrowingSupplier<T> op) {
         try {
             return op.get();
         } catch (IllegalArgumentException | IllegalStateException e) {
@@ -380,13 +400,13 @@ public class BackofficeServer {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid pin index");
         }
-        var updated = pinterestUnchecked(() -> pinterestService.publishPin(batchId, index));
+        var updated = unchecked(() -> pinterestService.publishPin(batchId, index));
         sendJson(ex, 200, gson.toJson(updated));
     }
 
     private void servePinterestImage(HttpExchange ex, String batchId, String file)
             throws IOException {
-        java.nio.file.Path path = pinterestUnchecked(
+        java.nio.file.Path path = unchecked(
                 () -> pinterestService.imageFile(batchId, file));
         if (!java.nio.file.Files.exists(path)) {
             sendError(ex, 404, "Image not found");
@@ -398,6 +418,62 @@ public class BackofficeServer {
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
         }
+    }
+
+    // ==================== Velzon (X/Twitter) ====================
+
+    private void handleVelzonApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (velzonService == null) {
+            sendError(ex, 503, "Velzon not configured");
+            return;
+        }
+        switch (seg.length) {
+            case 4 -> {
+                switch (seg[3]) {
+                    case "batches" -> requireGet(ex, method, () ->
+                            sendJson(ex, 200, gson.toJson(unchecked(velzonService::listBatches))));
+                    case "generate" -> requirePost(ex, method, () -> generateVelzonBatch(ex));
+                    default -> sendError(ex, 404, "Unknown resource");
+                }
+            }
+            case 8 -> {
+                if (!"batches".equals(seg[3]) || !"tweets".equals(seg[5])
+                        || !"publish".equals(seg[7])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requirePost(ex, method, () -> publishVelzonTweet(ex, seg[4], seg[6]));
+            }
+            default -> sendError(ex, 404, "Unknown resource");
+        }
+    }
+
+    private void generateVelzonBatch(HttpExchange ex) throws IOException {
+        JsonObject body = readJson(ex);
+        String topic = body.has("topic") ? body.get("topic").getAsString() : null;
+        if (topic == null || topic.isBlank()) {
+            throw new IllegalArgumentException("topic is required");
+        }
+        int count = body.has("count") ? body.get("count").getAsInt() : 5;
+        if (velzonGenerator == null) {
+            sendError(ex, 503, "Velzon generator not configured");
+            return;
+        }
+        velzonGenerator.launch(topic, count);
+        sendJson(ex, 202, "{\"queued\":true}");
+    }
+
+    private void publishVelzonTweet(HttpExchange ex, String batchId, String indexStr)
+            throws IOException {
+        int index;
+        try {
+            index = Integer.parseInt(indexStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid tweet index");
+        }
+        var updated = unchecked(() -> velzonService.publishTweet(batchId, index));
+        sendJson(ex, 200, gson.toJson(updated));
     }
 
     // ==================== media ====================

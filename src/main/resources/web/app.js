@@ -6,7 +6,7 @@ const state = {
   status: "",      // seçili durum filtresi ("" = tümü)
   job: null,       // açık iş (detay görünümü)
   lang: null,      // seçili dil sekmesi
-  view: "jobs",    // "jobs" | "pinterest"
+  view: "jobs",    // "jobs" | "pinterest" | "velzon"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -260,6 +260,7 @@ function showList() {
   state.view = "jobs";
   $("job-detail").classList.add("hidden");
   $("pinterest-view").classList.add("hidden");
+  $("velzon-view").classList.add("hidden");
   $("job-grid").classList.remove("hidden");
   $("page-title").textContent = "İşler";
   $("player").pause?.();
@@ -399,6 +400,7 @@ function showPinterestView() {
   state.view = "pinterest";
   $("job-grid").classList.add("hidden");
   $("job-detail").classList.add("hidden");
+  $("velzon-view").classList.add("hidden");
   $("pinterest-view").classList.remove("hidden");
   $("page-title").textContent = "Pinterest";
   $("player").pause?.();
@@ -503,6 +505,114 @@ async function submitPinterestGenerate() {
   }
 }
 
+// ---------- Velzon X ----------
+function showVelzonView() {
+  state.job = null;
+  state.view = "velzon";
+  $("job-grid").classList.add("hidden");
+  $("job-detail").classList.add("hidden");
+  $("pinterest-view").classList.add("hidden");
+  $("velzon-view").classList.remove("hidden");
+  $("page-title").textContent = "Velzon X";
+  $("player").pause?.();
+}
+
+async function loadVelzonBatches() {
+  const container = $("velzon-batches");
+  try {
+    const batches = await api("/api/velzon/batches");
+    container.innerHTML = "";
+    if (!batches.length) {
+      container.innerHTML = '<div class="empty">Henüz parti yok. "+ Yeni parti üret" ile başlat.</div>';
+      return;
+    }
+    for (const batch of batches) {
+      const section = document.createElement("div");
+      section.className = "pinterest-batch";
+      const heading = document.createElement("div");
+      heading.className = "pinterest-batch-title";
+      const publishedCount = batch.tweets.filter((t) => t.published).length;
+      heading.textContent = `${batch.id} — ${publishedCount}/${batch.tweets.length} yayında`;
+      section.appendChild(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "velzon-tweet-list";
+      batch.tweets.forEach((tw, index) => {
+        const card = document.createElement("div");
+        card.className = "velzon-tweet-card";
+        const text = document.createElement("div");
+        text.className = "velzon-tweet-text";
+        text.textContent = tw.text;
+        const meta = document.createElement("div");
+        meta.className = "velzon-tweet-meta";
+        meta.textContent = `${tw.topic} · ${tw.text.length}/280`;
+        card.append(text, meta);
+
+        if (tw.published && tw.url) {
+          const link = document.createElement("a");
+          link.className = "btn btn-secondary btn-small";
+          link.textContent = "X'te gör ↗";
+          link.href = tw.url;
+          link.target = "_blank";
+          card.appendChild(link);
+        } else if (tw.published) {
+          const badge = document.createElement("span");
+          badge.className = "chip";
+          badge.textContent = "Yayında";
+          card.appendChild(badge);
+        } else {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-primary btn-small";
+          btn.textContent = "Yayınla";
+          btn.onclick = async () => {
+            btn.disabled = true;
+            btn.textContent = "Yayınlanıyor…";
+            try {
+              await api(`/api/velzon/batches/${batch.id}/tweets/${index}/publish`, {
+                method: "POST",
+              });
+              toast("Tweet yayınlandı");
+              loadVelzonBatches();
+            } catch (e) {
+              toast(e.message, true);
+              btn.disabled = false;
+              btn.textContent = "Yayınla";
+            }
+          };
+          card.appendChild(btn);
+        }
+        grid.appendChild(card);
+      });
+      section.appendChild(grid);
+      container.appendChild(section);
+    }
+  } catch (e) {
+    container.innerHTML = "";
+    toast(e.message, true);
+  }
+}
+
+function openVelzonGenerateDialog() {
+  const dlg = $("dlg-velzon-generate");
+  dlg.returnValue = "";
+  dlg.showModal();
+}
+
+async function submitVelzonGenerate() {
+  const topic = $("velzon-topic").value.trim();
+  const count = Number($("velzon-count").value) || 5;
+  if (!topic) return;
+  try {
+    await api("/api/velzon/generate", {
+      method: "POST",
+      body: JSON.stringify({ topic, count }),
+    });
+    toast(`Parti kuyruğa alındı (${count} tweet) — birkaç dakika sürebilir, sonra Yenile'ye bas`);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
 // ---------- Wiring ----------
 function refresh() {
   loadChannels().catch((e) => toast(e.message, true));
@@ -538,6 +648,15 @@ document.addEventListener("DOMContentLoaded", () => {
   $("dlg-pinterest-generate").addEventListener("close", () => {
     if ($("dlg-pinterest-generate").returnValue === "ok") submitPinterestGenerate();
   });
+  $("nav-velzon").onclick = () => {
+    showVelzonView();
+    loadVelzonBatches();
+  };
+  $("btn-velzon-generate").onclick = openVelzonGenerateDialog;
+  $("btn-velzon-refresh").onclick = loadVelzonBatches;
+  $("dlg-velzon-generate").addEventListener("close", () => {
+    if ($("dlg-velzon-generate").returnValue === "ok") submitVelzonGenerate();
+  });
   $("nav-settings").onclick = () => {
     // Seçili kanal (yoksa ilk kanal) için ayarları aç
     const ch = state.channel
@@ -561,6 +680,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(() => {
     if (state.job) return;
     if (state.view === "pinterest") loadPinterestBatches();
+    else if (state.view === "velzon") loadVelzonBatches();
     else refresh();
   }, 15000); // arka plan yenileme
 });

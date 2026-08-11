@@ -43,6 +43,7 @@ public class Main {
                 }
                 case "tiktok-auth" -> runTikTokAuth(config);
                 case "pinterest-auth" -> runPinterestAuth(config);
+                case "velzon-x-auth" -> runVelzonXAuth(config);
                 case "pinterest-batch" -> {
                     requireArg(args, "pinterest-batch requires: <count> <niche prompt...>");
                     if (args.length < 3) {
@@ -284,6 +285,42 @@ public class Main {
         }
     }
 
+    private static com.videogenerator.velzon.XApiClient buildXApiClient(Configuration config) {
+        String key = config.get("x.client.id", "");
+        if (key.isBlank()) {
+            return null;
+        }
+        return new com.videogenerator.velzon.XApiClient(
+                new com.videogenerator.velzon.XHttp(), key,
+                config.get("x.client.secret", ""),
+                config.get("x.redirect.uri", ""),
+                java.nio.file.Path.of("config/tokens/velzon-x.json"));
+    }
+
+    /** Tek seferlik X yetkilendirmesi — PKCE dahil, tiktok-auth ile aynı akış şekli. */
+    private static void runVelzonXAuth(Configuration config) {
+        try {
+            var client = buildXApiClient(config);
+            if (client == null) {
+                System.out.println("ERROR: x.client.id not configured");
+                System.exit(1);
+            }
+            String url = client.authorizationUrl("st" + System.currentTimeMillis());
+            System.out.println("========================================");
+            System.out.println("1) Bu adresi tarayıcıda aç ve X hesabıyla onayla:");
+            System.out.println(url);
+            System.out.println("2) Açılan sayfadaki kodu buraya yapıştır ve Enter'a bas:");
+            System.out.print("> ");
+            String code = new java.util.Scanner(System.in).nextLine().trim();
+            client.exchangeCode(code);
+            System.out.println("X yetkilendirme TAMAM — token kaydedildi.");
+        } catch (Exception e) {
+            logger.error("velzon-x-auth failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
     private static String orDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
@@ -491,6 +528,31 @@ public class Main {
                 logger.info("Pinterest not configured (pinterest.client.id empty) — section disabled");
             }
 
+            var velzonExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+            var xClient = buildXApiClient(config);
+            if (xClient != null) {
+                var velzonService = new com.videogenerator.velzon.VelzonPublishService(
+                        xClient, java.nio.file.Path.of(
+                                config.get("velzon.output.dir", "output/velzon")));
+                com.videogenerator.web.BackofficeServer.VelzonBatchLauncher velzonGenerator =
+                        (topic, count) -> velzonExecutor.submit(() -> {
+                            try {
+                                var gen = new com.videogenerator.velzon.VelzonTweetGenerator(
+                                        new com.videogenerator.api.OpenAiGptClient());
+                                var outDir = java.nio.file.Path.of(
+                                        config.get("velzon.output.dir", "output/velzon"),
+                                        "batch-" + System.currentTimeMillis());
+                                gen.generateBatch(topic, count, outDir);
+                            } catch (Exception e) {
+                                logger.error("Velzon tweet batch generation failed", e);
+                            }
+                        });
+                server.withVelzon(velzonService, velzonGenerator);
+                logger.info("Velzon backoffice section enabled");
+            } else {
+                logger.info("Velzon not configured (x.client.id empty) — section disabled");
+            }
+
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -498,6 +560,7 @@ public class Main {
                 pipelineExecutor.shutdownNow();
                 publishExecutor.shutdownNow();
                 pinterestExecutor.shutdownNow();
+                velzonExecutor.shutdownNow();
             }));
 
             System.out.println("========================================");
@@ -600,7 +663,9 @@ public class Main {
         System.out.println("  validate             - Check ffmpeg, API keys and channel profiles");
         System.out.println("  publish-meta <jobId> [lang] - Backfill IG/FB for an already-published job");
         System.out.println("  tiktok-auth          - One-time TikTok OAuth authorization");
-        System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (manual posting)");
+        System.out.println("  pinterest-auth       - One-time Pinterest OAuth authorization");
+        System.out.println("  velzon-x-auth        - One-time X (Twitter) OAuth authorization (PKCE)");
+        System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (also available in backoffice)");
         System.out.println("  help                 - Show this help");
     }
 }

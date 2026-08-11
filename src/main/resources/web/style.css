@@ -254,3 +254,15 @@ dialog .field { margin-bottom:16px; }
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
 }
 .pinterest-pin-card .btn { align-self:flex-start; }
+
+/* Velzon X */
+.velzon-tweet-list {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;
+}
+.velzon-tweet-card {
+  background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
+  padding:16px; display:flex; flex-direction:column; gap:10px;
+}
+.velzon-tweet-text { font-size:14px; line-height:1.5; }
+.velzon-tweet-meta { font-size:12px; color:var(--text-dim); }
+.velzon-tweet-card .btn { align-self:flex-start; }
