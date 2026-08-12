@@ -67,6 +67,14 @@ public class BackofficeServer {
     private com.videogenerator.velzon.VelzonInstagramPublishService velzonInstagramService; // opsiyonel
     private VelzonInstagramBatchLauncher velzonInstagramGenerator; // opsiyonel
 
+    /** Velzon YouTube senaryo partisi üretimini arka planda tetikler. */
+    public interface VelzonYoutubeBatchLauncher {
+        void launch(String topicPrompt, int count);
+    }
+
+    private com.videogenerator.velzon.VelzonYoutubePublishService velzonYoutubeService; // opsiyonel
+    private VelzonYoutubeBatchLauncher velzonYoutubeGenerator; // opsiyonel
+
     public BackofficeServer withStats(StatsCollector collector) {
         this.statsCollector = collector;
         return this;
@@ -93,6 +101,14 @@ public class BackofficeServer {
             VelzonInstagramBatchLauncher velzonInstagramGenerator) {
         this.velzonInstagramService = velzonInstagramService;
         this.velzonInstagramGenerator = velzonInstagramGenerator;
+        return this;
+    }
+
+    public BackofficeServer withVelzonYoutube(
+            com.videogenerator.velzon.VelzonYoutubePublishService velzonYoutubeService,
+            VelzonYoutubeBatchLauncher velzonYoutubeGenerator) {
+        this.velzonYoutubeService = velzonYoutubeService;
+        this.velzonYoutubeGenerator = velzonYoutubeGenerator;
         return this;
     }
     private HttpServer httpServer;
@@ -146,6 +162,10 @@ public class BackofficeServer {
             }
             if (seg.length >= 3 && "velzon-instagram".equals(seg[2])) {
                 handleVelzonInstagramApi(ex, method, seg);
+                return;
+            }
+            if (seg.length >= 3 && "velzon-youtube".equals(seg[2])) {
+                handleVelzonYoutubeApi(ex, method, seg);
                 return;
             }
             if (seg.length >= 3 && "velzon".equals(seg[2])) {
@@ -573,6 +593,71 @@ public class BackofficeServer {
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
         }
+    }
+
+    // ==================== Velzon YouTube ====================
+
+    /**
+     * NOT: Instagram/Pinterest'in aksine burada bir "images/{file}" servis
+     * rotası YOK — VelzonYoutubeScriptGenerator parti üretiminde görsel
+     * ÜRETMEZ (bkz. o sınıfın javadoc'u); arkaplan görseli yalnızca
+     * "Yayınla" tıklandığında, VelzonYoutubeVideoBuilder tarafından üretilir.
+     * Bu yüzden inceleme ekranında yalnızca metin (anlatım/başlık/açıklama)
+     * gösterilir, yayınlandıktan sonra ise doğrulama için YouTube linkine
+     * gidilir.
+     */
+    private void handleVelzonYoutubeApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (velzonYoutubeService == null) {
+            sendError(ex, 503, "Velzon YouTube not configured");
+            return;
+        }
+        switch (seg.length) {
+            case 4 -> {
+                switch (seg[3]) {
+                    case "batches" -> requireGet(ex, method, () -> sendJson(ex, 200,
+                            gson.toJson(unchecked(velzonYoutubeService::listBatches))));
+                    case "generate" -> requirePost(ex, method, () -> generateVelzonYoutubeBatch(ex));
+                    default -> sendError(ex, 404, "Unknown resource");
+                }
+            }
+            case 8 -> {
+                if (!"batches".equals(seg[3]) || !"scripts".equals(seg[5])
+                        || !"publish".equals(seg[7])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requirePost(ex, method, () -> publishVelzonYoutubeVideo(ex, seg[4], seg[6]));
+            }
+            default -> sendError(ex, 404, "Unknown resource");
+        }
+    }
+
+    private void generateVelzonYoutubeBatch(HttpExchange ex) throws IOException {
+        JsonObject body = readJson(ex);
+        String topic = body.has("topic") ? body.get("topic").getAsString() : null;
+        if (topic == null || topic.isBlank()) {
+            throw new IllegalArgumentException("topic is required");
+        }
+        int count = body.has("count") ? body.get("count").getAsInt() : 5;
+        if (velzonYoutubeGenerator == null) {
+            sendError(ex, 503, "Velzon YouTube generator not configured");
+            return;
+        }
+        velzonYoutubeGenerator.launch(topic, count);
+        sendJson(ex, 202, "{\"queued\":true}");
+    }
+
+    private void publishVelzonYoutubeVideo(HttpExchange ex, String batchId, String indexStr)
+            throws IOException {
+        int index;
+        try {
+            index = Integer.parseInt(indexStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid script index");
+        }
+        var updated = unchecked(() -> velzonYoutubeService.publishVideo(batchId, index));
+        sendJson(ex, 200, gson.toJson(updated));
     }
 
     // ==================== media ====================

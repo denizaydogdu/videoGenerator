@@ -44,6 +44,7 @@ public class Main {
                 case "tiktok-auth" -> runTikTokAuth(config);
                 case "pinterest-auth" -> runPinterestAuth(config);
                 case "velzon-x-auth" -> runVelzonXAuth(config);
+                case "velzon-youtube-auth" -> runVelzonYouTubeAuth();
                 case "pinterest-batch" -> {
                     requireArg(args, "pinterest-batch requires: <count> <niche prompt...>");
                     if (args.length < 3) {
@@ -231,6 +232,39 @@ public class Main {
      * Tek seferlik TikTok yetkilendirmesi: adresi yazdırır, kullanıcı
      * tarayıcıda onaylar, callback sayfasındaki kodu terminale yapıştırır.
      */
+    /**
+     * Velzon YouTube kanalı için tek seferlik OAuth. Google'ın kütüphanesi
+     * TikTok/Pinterest'ten farklı çalışır: tarayıcıyı kendisi açar ve
+     * yerel bir HTTP sunucusuyla (port 8888) callback'i yakalar — kod
+     * kopyala-yapıştır yok. Token, mevcut youtube.client.id/secret ile
+     * (aynı Google Cloud projesi, "In production") ama Velzon'un YouTube
+     * kanalına bağlı Google hesabıyla üretilir; Unsolved Files'ın
+     * "tokens/<channelId>" token dizininden ayrı, "tokens/velzon-youtube"
+     * altında saklanır (bkz. YouTubeApiClient constructor javadoc).
+     */
+    private static void runVelzonYouTubeAuth() {
+        try {
+            System.out.println("========================================");
+            System.out.println("Tarayıcı açılacak — Velzon'un YouTube kanalına");
+            System.out.println("bağlı Google hesabıyla giriş yap ve onayla.");
+            System.out.println("========================================");
+            var client = new com.videogenerator.api.YouTubeApiClient("tokens/velzon-youtube");
+            boolean ok = client.testConnection();
+            if (!ok) {
+                System.out.println("ERROR: bağlantı testi başarısız, log'lara bak.");
+                System.exit(1);
+                return;
+            }
+            String channelTitle = client.getMyChannelTitle();
+            System.out.println("Velzon YouTube yetkilendirme TAMAM — token kaydedildi.");
+            System.out.println("Bağlanılan kanal: " + channelTitle);
+        } catch (Exception e) {
+            logger.error("velzon-youtube-auth failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
     private static void runTikTokAuth(Configuration config) {
         try {
             var client = buildTikTokClient(config);
@@ -347,6 +381,19 @@ public class Main {
 
     private static String orDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    /**
+     * Velzon YouTube için diğer entegrasyonlardaki gibi bir "client id/
+     * access token" config anahtarı YOK — OAuth zaten insan tarafından
+     * tamamlandı (info@velzon.tr hesabı, bkz. proje notları) ve token
+     * config/tokens/velzon-youtube/ dizininde duruyor. Bu yüzden "yapılandırılmış
+     * mı" kontrolü diğer buildXClient(...) yardımcılarından farklı olarak bir
+     * config anahtarına değil, bu dizinin VARLIĞINA bakar.
+     */
+    private static boolean velzonYoutubeConfigured() {
+        return java.nio.file.Files.isDirectory(
+                java.nio.file.Path.of("config/tokens/velzon-youtube"));
     }
 
     /**
@@ -606,6 +653,47 @@ public class Main {
                         + " — section disabled");
             }
 
+            var velzonYoutubeExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+            if (velzonYoutubeConfigured()) {
+                try {
+                    var velzonYoutubeClient = new com.videogenerator.api.YouTubeApiClient(
+                            "tokens/velzon-youtube");
+                    var velzonYoutubeVideoBuilder = new com.videogenerator.velzon.VelzonYoutubeVideoBuilder(
+                            new com.videogenerator.api.ImageApiClient(),
+                            new com.videogenerator.api.ElevenLabsClient(),
+                            new com.videogenerator.processor.FFmpegWrapper(),
+                            new com.videogenerator.processor.KenBurnsRenderer(
+                                    new com.videogenerator.processor.FFmpegWrapper()),
+                            new com.videogenerator.model.VoiceConfig());
+                    var velzonYoutubeService = new com.videogenerator.velzon.VelzonYoutubePublishService(
+                            velzonYoutubeClient::uploadVideo, velzonYoutubeVideoBuilder,
+                            java.nio.file.Path.of(config.get("velzon.youtube.output.dir",
+                                    "output/velzon-youtube")));
+                    com.videogenerator.web.BackofficeServer.VelzonYoutubeBatchLauncher
+                            velzonYoutubeGenerator = (topic, count) -> velzonYoutubeExecutor.submit(() -> {
+                                try {
+                                    var gen = new com.videogenerator.velzon.VelzonYoutubeScriptGenerator(
+                                            new com.videogenerator.api.OpenAiGptClient());
+                                    var outDir = java.nio.file.Path.of(
+                                            config.get("velzon.youtube.output.dir", "output/velzon-youtube"),
+                                            "batch-" + System.currentTimeMillis());
+                                    gen.generateBatch(topic, count, outDir);
+                                } catch (Exception e) {
+                                    logger.error("Velzon YouTube batch generation failed", e);
+                                }
+                            });
+                    server.withVelzonYoutube(velzonYoutubeService, velzonYoutubeGenerator);
+                    logger.info("Velzon YouTube backoffice section enabled");
+                } catch (Exception e) {
+                    // Token dizini var ama istemci kurulumu başarısız oldu (ör. bozuk
+                    // token) — sunucu ayakta kalsın, sadece bu bölüm devre dışı kalsın
+                    logger.error("Velzon YouTube setup failed despite token dir present", e);
+                }
+            } else {
+                logger.info("Velzon YouTube not configured (config/tokens/velzon-youtube missing)"
+                        + " — section disabled");
+            }
+
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -615,6 +703,7 @@ public class Main {
                 pinterestExecutor.shutdownNow();
                 velzonExecutor.shutdownNow();
                 velzonInstagramExecutor.shutdownNow();
+                velzonYoutubeExecutor.shutdownNow();
             }));
 
             System.out.println("========================================");
@@ -719,6 +808,7 @@ public class Main {
         System.out.println("  tiktok-auth          - One-time TikTok OAuth authorization");
         System.out.println("  pinterest-auth       - One-time Pinterest OAuth authorization");
         System.out.println("  velzon-x-auth        - One-time X (Twitter) OAuth authorization (PKCE)");
+        System.out.println("  velzon-youtube-auth  - One-time Velzon YouTube channel OAuth (opens browser)");
         System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (also available in backoffice)");
         System.out.println("  help                 - Show this help");
     }

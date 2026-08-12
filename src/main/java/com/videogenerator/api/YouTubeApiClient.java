@@ -302,6 +302,21 @@ public class YouTubeApiClient {
     }
 
     /**
+     * Yetkilendirilmiş hesabın kanal adını döner — auth sonrası "doğru
+     * hesaba mı bağlandık" diye görsel doğrulama için (bkz. velzon-youtube-auth).
+     */
+    public String getMyChannelTitle() throws IOException {
+        var resp = youtubeService.channels()
+                .list(java.util.List.of("snippet"))
+                .setMine(true)
+                .execute();
+        if (resp.getItems() == null || resp.getItems().isEmpty()) {
+            return null;
+        }
+        return resp.getItems().get(0).getSnippet().getTitle();
+    }
+
+    /**
      * Tests the YouTube API connection
      */
     public boolean testConnection() {
