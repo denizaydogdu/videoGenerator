@@ -1,37 +1,106 @@
 # 📋 Yapılacak İşler — Shorts Fabrikası
 
-> Güncelleme: 2026-08-02 gecesi. Kaynak: 5-ajan denetimi + ilk gün deneyimi.
+> Güncelleme: 2026-08-12. Kaynak: 5-ajan denetimi + ilk hafta deneyimi.
 > Kural: bir iş bitince `[x]` işaretle + tarihi yaz. Sıra önemlidir.
 
-## 1️⃣ ŞİMDİ — Deniz'in Studio görevleri (~15 dk, tek seferlik)
+## 1️⃣2️⃣ Velzon çoklu-platform genişlemesi (2026-08-12 başladı)
 
-- [ ] **Telefon doğrulaması** → https://youtube.com/verify
-      *(özel küçük resim, 15dk+ video, Content ID itirazı açılır)*
-- [ ] **Kanal kitlesi:** Studio → Ayarlar → Kanal → Gelişmiş ayarlar →
-      Kitle → **"Hayır, çocuklara yönelik değil"**
+Kullanıcının kendi şirketi Velzon (fintech/e-fatura) için görünürlük artırma
+işi büyüdü: X'ten sonra Instagram/YouTube/TikTok de eklenecek. Ayrıca
+**yeni bir 3. firma: Scyborsa** (borsa uygulaması, iOS+Android canlı,
+mevcut hesaplar: https://x.com/scyborsa, https://www.tiktok.com/@scyborsa,
+https://www.instagram.com/scyborsa/, web: scyborsa.com) — aynı desenle
+(AI metin+görsel, backoffice'ten tek tık yayın) ileride eklenecek.
+
+Sıra: Velzon IG → Velzon YouTube → Velzon TikTok → Velzon X (kod zaten
+hazır, sadece Developer Portal kurulumu bekleniyor) → sonra Scyborsa.
+
+### Velzon Instagram — kurulum tamamlandı, kod agent'ta
+- [x] Meta app "Velzon Social Publisher" oluşturuldu (App ID 1984849792233808,
+      use case: Manage messaging & content on Instagram) ✅ (2026-08-12)
+- [x] **"Instagram API with Instagram Login" akışı kullanıldı — Facebook Page
+      GEREKMEDİ** (Velzon'un Facebook hesabı yok, bu yüzden bilinçli seçim)
+- [x] `instagram_business_content_publish` izni eklendi (varsayılan listede
+      yoktu, Permissions and features sayfasından elle eklendi)
+- [x] **"Insufficient developer role" hatası çözüldü** — hem Facebook hem
+      Instagram hesabında 2FA açılması + @velzontr'nin App roles → Roles'te
+      "Instagram Tester" davetini instagram.com/accounts/manage_access/
+      üzerinden elle kabul etmesi gerekti (otomatik "Add account" akışı
+      arka planda bu adımı tamamlayamıyor, bilinen bir Meta aksaklığı)
+- [x] Access token üretildi ve doğrulandı (curl ile canlı test, @velzontr
+      BUSINESS hesap dönüyor) — config'e kaydedildi (`velzon.ig.*` anahtarları)
+- [x] **Kod tarafı tamamlandı** ✅ (2026-08-12) — `VelzonInstagramApiClient`
+      (graph.instagram.com, media container → publish → permalink, 3 ayrı
+      metod), `VelzonInstagramPostGenerator` (Pinterest deseninde AI
+      görsel+caption, fintech güvenlik kuralları), `VelzonInstagramPublishService`
+      (idempotent manifest), backoffice entegrasyonu (Pinterest/Velzon-X ile
+      aynı desen, "Velzon Instagram" bölümü). 195 yeni test (163→203 toplam,
+      market data client dahil).
+- [x] **Adversarial review + kritik bug düzeltildi** ✅ (2026-08-12) — Codex
+      hâlâ kullanılamıyor (limit 10 Eylül), bağımsız review agent'ı kullanıldı.
+      Bulgu: `publishContainer` başarılı olup (post gerçek hesapta canlıya
+      çıkıp) `getPermalink` ya da manifest yazma başarısız olursa,
+      `published` flag `false` kalıyordu → kullanıcı tekrar "Yayınla" derse
+      **duplicate post** riski (Pinterest'teki emsal bug'ın aynısı). Düzeltme:
+      `publishContainer` sonrası `published=true` (url=null) hemen kalıcı
+      hale getiriliyor, permalink ayrı try/catch'te deneniyor. Yeni testle
+      doğrulandı, 203/203 yeşil.
+- [ ] **Canlı ilk post denemesi** — backoffice'ten "+ Yeni parti üret" ile
+      bir batch üret, bir postu "Yayınla" ile gerçek @velzontr hesabına
+      gönder, Instagram'da göründüğünü doğrula.
+- [ ] **Gerçek piyasa verisi entegrasyonu (yeni, 2026-08-12 başladı)** —
+      `VelzonMarketDataClient` yazıldı (gate.velzon.tr/api/chart/v2/{symbol},
+      X-API-KEY ile — Velzon'un kendi Django frontend'inin de kullandığı
+      aynı backend, Django aradan çıkarılıyor). **Not:** kullanılan
+      API key (`prod-DE6D594B-...`), velzon-django'nun kendi
+      ADR-005-frontend-apikey-proxy-public-veri.md dosyasında "rotate
+      edilmeli" diye işaretli eski bir anahtar — kullanıcı onayıyla
+      şimdilik bu anahtarla devam ediliyor, rotate edilirse
+      `velzon.market.api.key` burada da güncellenmeli. Henüz içerik
+      üretimine (VelzonInstagramPostGenerator/VelzonTweetGenerator)
+      bağlanmadı — sıradaki adım bu.
+
+## ✅ OAuth kalıcılığı çözüldü
+
+- [x] **Google Cloud Console → Google Auth Platform → Audience → Publish app**
+      ✅ (2026-08-12) — proje `gen-lang-client-0951563693`, durum artık
+      "In production" (Testing'ten çıktı). YouTube token'ı artık 7 günde
+      bir kesilme riski taşımıyor. `youtube.upload` sensitive scope
+      olduğu için gelecekteki re-auth'larda "Google hasn't verified this
+      app" uyarısı çıkabilir — sorun değil, "Advanced → Go to (unsafe)"
+      ile geçilir; tek kullanıcı (owner) kullandığı için doğrulama
+      (verification) gerekmez.
+
+## ✅ 1️⃣ Deniz'in Studio görevleri — TAMAMLANDI (2026-08-12)
+
+- [x] **Telefon doğrulaması** ✅ (2026-08-12) — özel küçük resim, 15dk+
+      video, Content ID itirazı artık açık
+- [x] **Kanal kitlesi: "Hayır, çocuklara yönelik değil"** ✅ (2026-08-12)
 - [x] **Ülke seçimi: Türkiye** ✅ (2026-08-02)
-- [ ] **Advanced features doğrulaması:** Ayarlar → Kanal → Özellik uygunluğu →
-      Gelişmiş özellikler → kimlik/video ile doğrula
-      *(Topluluk sekmesini açar; 48 saate kadar sürebilir — erken başlat)*
-- [ ] **Handle değişikliği:** Özelleştirme → Profil → Tanıtıcı →
-      `@Unsolved_Files_007` yerine temiz bir isim (öneri: `@UnsolvedFilesTV`)
-      *(dış linkler birikmeden şimdi — sonra maliyetli)*
-- [ ] **About linkleri + iletişim maili** (Özelleştirme → Profil)
+- [x] **Advanced features doğrulaması** ✅ (2026-08-12) — kontrol edildi,
+      Standart/Orta/Gelişmiş özelliklerin üçü de zaten Etkin, ek işlem
+      gerekmedi
+- [x] **Handle değişikliği: `@UnsolvedFilesShow`** ✅ (2026-08-12) —
+      `Unsolved_Files_TV`, `UnsolvedFilesTV` denendi, ikisi de doluydu;
+      `UnsolvedFilesShow` müsait çıktı, yayınlandı
+- [x] **About linkleri + iletişim maili** ✅ (2026-08-12) — Instagram
+      (instagram.com/unsolvedfiles007) + Facebook (facebook.com/
+      unsolvedfiles007) linkleri, iletişim maili denizaydogdu@gmail.com
 
-## 2️⃣ ŞİMDİ — Lisans (para kazanma öncesi tek engel)
+## 2️⃣ Lisans — ElevenLabs
 
-- [ ] **ElevenLabs Starter ($5/ay)** → elevenlabs.io/pricing
-      *(free tier ticari kullanım YASAK + atıf zorunlu; Starter kalıcı ticari
-      hak verir. Sonra `music.enabled=true` yapılıp müzik de açılabilir)*
+- [x] **Karar verildi (2026-08-02):** Starter yerine yeni ücretsiz hesap
+      açıldı (kullanıcı riskleri bilerek kabul etti). YPP/gelir öncesi
+      tekrar gündeme getirilmeyecek — kaynak fiilen bitince tek hatırlatma.
 
-## 3️⃣ KARAR — Kurgu mu, gerçek vakalar mı? (video #3'ten önce şart)
+## 3️⃣ KARAR — Kurgu mu, gerçek vakalar mı? ✅ VERİLDİ
 
-- [ ] Seçenek A (ÖNERİLEN): **Sadece gerçek vakalar** — D.B. Cooper modeli.
-      Risk sıfırlanır, arama trafiği hazır. Emsal: "True Crime Case Files"
-      kanalı kurgu→gerçek sunumdan KAPATILDI (Şubat 2025).
-- [ ] Seçenek B: Kurguya devam ama **başlıkta/ekranda** kurgu ibaresi
-      (açıklamadaki uyarı YETMEZ)
-- [ ] Karar sonrası: Mara Vale (3 video) başlıkları karara göre güncellenir
+- [x] **Seçenek A: Sadece gerçek vakalar** (2026-08-02) — Zodiac, Çağla
+      Tuğaltay, Los Galindos hepsi bu kuralla üretildi: kesinleşmiş
+      hüküm ya da 10+ yıllık faili meçhul, "reportedly/alleged" dili,
+      yaşayan şüpheli ismi yok. StoryWriter promptunda kalıcı kural.
+- [ ] Mara Vale (kurgu, 3 video, eski format) — başlıkları hâlâ gözden
+      geçirilmedi; düşük öncelik (izlenmesi zaten YouTube'da devam ediyor)
 
 ## 4️⃣ FORMAT 2.0 — Claude'un kod işleri (video #3+ için, ~yarım gün)
 
@@ -86,12 +155,99 @@
       44 fikir tohumu hazır bekliyor
 - [ ] **Multi-audio track POC** (öncelik yükseldi): tek video + 3 ses
       kanalı = tek abone havuzu + temiz dil hedeflemesi
-- [ ] **TikTok/Meta API başvuruları** (onay haftalar sürüyor — erken başvur)
-- [ ] OAuth kalıcılığı: Cloud Console → "Publish app" *(yoksa 7 günde bir
-      yeniden izin — ilk hatırlatıcı: ~8 Ağustos)*
+- [x] **Meta API** ✅ (2026-08-02) — IG Reels + FB Reels canlı, ilk yayın yapıldı
+- [~] **TikTok API** — app kuruldu, domain doğrulandı, sandbox'ta ilk
+      gönderi başarılı (2026-08-03). Kalan: demo video çek → app review'a
+      gönder (onay 1-4 hafta bekleniyor, henüz gönderilmedi)
 - [ ] Multi-audio track araştırması (tek video + 6 dublaj kanalı — pipeline
       yeniden mimarisi gerektirir, veri toplandıktan sonra değerlendir)
 
+## 8️⃣ TikTok — App review
+
+- [x] Demo video çekildi (73sn ekran kaydı, 160MB→3.4MB sıkıştırıldı) ✅ (2026-08-11)
+- [x] Production sekmesinde Products/Scopes/App review dolduruldu, video
+      yüklendi, Submit for review yapıldı ✅ (2026-08-11) — "gönderildi,
+      yakında dönüş yapılacak" onayı alındı. Bekleniyor: 1-4 hafta.
+- [ ] **Onay gelince (ayrı oturum):** hesabı tekrar herkese açık yap
+      (Özel Hesap'ı kapat) + config'te `tiktok.privacy.level=PUBLIC_TO_EVERYONE`
+      + `tiktok.use.sandbox=false` + prod client key (`awwq0ly3g4sgjjng`)
+      ile `tiktok-auth` tekrar koştur (prod token ayrı, henüz yok)
+
+## 1️⃣1️⃣ Backoffice production deploy ✅ (2026-08-12)
+
+- [x] **Backoffice DigitalOcean droplet'e (Velzon'un prod sunucusu,
+      209.38.247.159) deploy edildi** — `https://shorts.velzon.tr`
+      canlı, HTTPS (Let's Encrypt, certbot otomatik yenileme), Cloudflare
+      proxied. Servis: `shorts-backoffice.service` (systemd, kullanıcı
+      `shortsgen`, dizin `/opt/shorts-backoffice/`, port 8096 → nginx
+      reverse proxy). `enabled` — reboot'ta otomatik kalkar.
+- [x] Java 17 + ffmpeg sunucuya kuruldu, jar + `config/application.properties`
+      + `google_credentials.json` + TikTok sandbox token + YouTube
+      `StoredCredential` + kanal profilleri (`forensic-lab-en`,
+      `truecrime-en`) + `assets/` (müzik) kopyalandı. `ffmpeg.path`/
+      `ffprobe.path` Linux yollarına (`/usr/bin/*`) güncellendi.
+      `backoffice.port=8096` eklendi.
+- [x] Doğrulama: `/api/jobs` → `[]`, `/api/pinterest/batches` → `[]`,
+      `/api/velzon/batches` → 503 (x.client.id boş, beklenen).
+- [ ] **TEKNİK BORÇ — kimlik doğrulama yok:** kullanıcının açık talimatıyla
+      auth eklenmedi ("login vb koyma ilerleyen zamanlarda teknik borç
+      olarak ekleriz", 2026-08-11). Backoffice şu an URL'yi bilen herkese
+      açık — TikTok/Pinterest/Velzon X'e gerçek içerik yayınlayabilir,
+      OpenAI/ElevenLabs bütçesi tüketebilir. Cloudflare Access (email/Google
+      login duvarı, kod değişikliği gerektirmez) en hızlı çözüm — ne zaman
+      gündeme gelirse onunla başla.
+- [ ] `output/pinterest/batch1` (zaten manuel yayınlanmış 10 pin) ve eski
+      video job'ları sunucuya kopyalanmadı — dashboard bundan sonra üretilen
+      yeni işleri gösterecek, geçmiş sıfırdan. İstenirse sonradan senkronize
+      edilebilir.
+- [ ] Yerel Mac'teki `serve` artık gereksiz — ileride sadece geliştirme/test
+      için kullanılacak, gerçek üretim artık sunucuda.
+
+## 🔟 Velzon X (Twitter) otomasyonu (2026-08-11 başladı, kullanıcının kendi şirketi)
+
+- [x] **Kod + backoffice entegrasyonu tamamlandı** ✅ (commit 471f2c2, 163 test)
+      — `XApiClient` (OAuth2 PKCE, Pinterest'ten farklı: X'in tek desteklediği
+      grant type), `VelzonTweetGenerator` (Türkçe taslak üretimi, fintech
+      güvenlik kuralları: KDV/vergi rakamı yok, kesin hukuki tavsiye yok,
+      rakip adı yok), backoffice'te "Velzon X" bölümü (Pinterest ile aynı yerde)
+- [ ] **Kullanıcı: developer.x.com'da uygulama kur** — ÖNEMLİ: mutlaka bir
+      **Project** altında oluştur (standalone app'lerde Pay-Per-Use planında
+      bilinen bir 403 hatası var), Permissions: Read and Write, callback:
+      `https://videogenerator.velzon.tr/x-callback.html`, Pay-Per-Use'a
+      kredi yükle (~$5 yeterli, tweet başı ~$0.015)
+- [ ] Client ID + Secret gelince config'e ekle (`x.client.id`, `x.client.secret`)
+      → `velzon-x-auth` ile tek seferlik yetkilendirme
+- [ ] İlk gerçek tweet testi (backoffice'ten "Yayınla") — 403 hatası çıkarsa
+      app'in Project'e bağlı olduğunu ve kredi bakiyesini kontrol et
+
+## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
+
+- [x] Pinterest işletme hesabı kuruldu (@denizaydogdu, marka adı "Small
+      Space Living", AI-üretimi profil fotoğrafı + bio) ✅ (2026-08-11)
+- [x] batch1'in 10 pini de "Small Space Living" panosuna yayınlandı ✅
+      (2026-08-11) — her pinde "Mark as AI-Modified" işaretlendi (şeffaflık),
+      profil herkese açık + aranabilir (Private/Search privacy kapalı doğrulandı)
+- [x] **Backoffice'e Pinterest bölümü eklendi** ✅ (2026-08-11, commit a92ce4d,
+      144 test) — parti listesi + tek tık "Yayınla" + "Yeni parti üret" hepsi
+      aynı ekranda (video işleriyle yan yana), artık Pinterest.com'a gidip
+      gelmeye gerek yok. Pinterest Developer app kuruldu (App id: 1599926,
+      site: videogenerator.velzon.tr/pinterest-callback.html) ama **App
+      secret "Trial access pending" — henüz alınamıyor**, o yüzden yayınlama
+      butonu şimdilik çalışmaz (parti üretimi + liste görüntüleme çalışıyor,
+      secret gelince `pinterest-auth` ile tek seferlik yetkilendirme yapılacak)
+- [ ] **1 hafta bekle (~18 Ağustos), Pinterest Analytics'i kontrol et:**
+      hangi format (öncesi/sonrası vs "en iyi 5" vs "N ürün") daha çok
+      impression/save/outbound click alıyor
+- [ ] Amazon Associates onayını takip et (kullanıcı başvurdu)
+- [ ] Onay gelince: gerçek ürünleri SiteStripe ile seç, linkleri pinlere ekle
+- [ ] Sıradaki parti: Pinterest Trends'teki gerçek arama terimlerine göre
+      üret (kör GPT tahmini değil) — `pinterest-batch <count> <niş>` komutu hazır
+- [ ] Sinyal olumluysa (gerçek tıklama/kayıt varsa) otomasyon değerlendir;
+      olumsuzsa bırak — büyük yatırım yapılmadı, kayıp minimal
+
 ---
-**Bitenler arşivi:** Plan 1-2-3 ✅ · kanal kimliği ✅ · 6 video yayında ✅ ·
-dil/kategori/hashtag/kitle backfill ✅ · madeForKids+limit+temizlik kodu ✅
+**Bitenler arşivi:** Plan 1-2-3 ✅ · kanal kimliği ✅ · vaka rotasyonu
+(ABD→TR→ES) 3 platformda yayında ✅ · dil/kategori/hashtag/kitle backfill ✅ ·
+madeForKids+limit+temizlik kodu ✅ · Meta entegrasyonu ✅ · TikTok sandbox ✅ ·
+izlenme tablosu backoffice'te ✅ · Kanal Ayarları sayfası ✅ · fal.ai
+değerlendirildi ve rafa kaldırıldı (2026-08-10, gelir sonrası B planı)
