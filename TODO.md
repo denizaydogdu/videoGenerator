@@ -12,8 +12,65 @@ mevcut hesaplar: https://x.com/scyborsa, https://www.tiktok.com/@scyborsa,
 https://www.instagram.com/scyborsa/, web: scyborsa.com) — aynı desenle
 (AI metin+görsel, backoffice'ten tek tık yayın) ileride eklenecek.
 
-Sıra: Velzon IG → Velzon YouTube → Velzon TikTok → Velzon X (kod zaten
-hazır, sadece Developer Portal kurulumu bekleniyor) → sonra Scyborsa.
+Sıra: Velzon IG → **Velzon YouTube (şimdi)** → Velzon TikTok → Velzon X
+(kod zaten hazır, sadece Developer Portal kurulumu bekleniyor) → sonra
+Scyborsa.
+
+**Scyborsa veri entegrasyonu ERTELENDİ** (2026-08-12 araştırıldı,
+kullanıcı kararıyla) — otomatik DB/API entegrasyonu şu an kapalı yol:
+Scyborsa'nın Postgres'i ayrı sunucuda + localhost-only, "yayına hazır
+bulgu" endpoint'i yok, `docs/kaynak/olcum/*.md` dosyaları yapısal değil
+(serbest metin, insan yargısı gerektiriyor). Ayrıca Scyborsa'nın kendi
+yayın rehberi (`olcum-bulgulari-yayin-rehberi.md`) çok katı: hisse kodu +
+güncel veri, kurum adı ASLA yayınlanamaz — sadece kurumsuz/istatistiksel
+bulgular (T+2 mutabakatı, taban oranı vb.) güvenli. Detay: [[scyborsa-data-integration]].
+Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
+— sıra gelince değerlendirilecek.
+
+### Velzon YouTube — OAuth tamamlandı, video pipeline sırada
+- [x] `velzon-youtube-auth` CLI komutu eklendi (Main.java) — YouTube'un
+      OAuth akışı TikTok/Pinterest'ten farklı: Google'ın kütüphanesi
+      tarayıcıyı otomatik açar, yerel sunucuyla (port 8888) callback'i
+      yakalar, kod kopyala-yapıştır yok ✅ (2026-08-12)
+- [x] **Doğru Google hesabı: `info@velzon.tr`** (kullanıcının kişisel
+      Gmail'i DEĞİL — bu karışıklık oturumda birkaç kez düzeltildi,
+      hafızaya kaydedildi) — "Google doğrulamadı" uyarısı normal
+      (youtube.upload sensitive scope), "Gelişmiş → git (güvenli değil)"
+      ile geçildi
+- [x] **Bug düzeltildi:** `runVelzonYouTubeAuth` ilk yazımda token'ı
+      yanlış dizine (`config/velzon-youtube/`) kaydediyordu — diğer tüm
+      kanallarla tutarlı olması gereken yer `config/tokens/velzon-youtube/`
+      (`"tokens/" + id` deseni, Main.java'daki diğer YouTubeApiClient
+      kullanımlarıyla aynı). Dosya taşındı + kod düzeltildi.
+- [x] **Doğrulandı:** `getMyChannelTitle()` eklendi, token'ın gerçekten
+      "Velzon" kanalına bağlı olduğu teyit edildi (tarayıcı açılmadan,
+      kayıtlı token ile).
+- [x] **Video üretim pipeline'ı** ✅ (2026-08-12, TDD) —
+      `VelzonYoutubeScriptGenerator` (LLM ile anlatım/başlık/açıklama/
+      hashtag/görsel-prompt üretir, TEMBEL: parti üretiminde görsel/ses/
+      video ÜRETMEZ) + `VelzonYoutubeVideoBuilder` (KenBurnsRenderer'ı
+      TEK SAHNE modunda kullanır: görsel+TTS+boş .ass ile render,
+      "Yayınla" tıklanana kadar çalışmaz, dosya varlığına bakarak
+      idempotent) + `VelzonYoutubePublishService` (upload sonrası
+      published=true HEMEN kalıcı — Instagram'daki emsal duplicate-publish
+      bug fix'iyle aynı sıralama). Backoffice: yeni "Velzon YouTube"
+      sekmesi (sidebar + parti üretim diyaloğu + yayın butonu). 221 test
+      yeşil (18 yeni). AÇIK RİSK: boş `.ass` dosyasının ffmpeg
+      `subtitles=` filtresini bozmadığı gerçek ffmpeg ile doğrulanmadı —
+      canlı ilk denemede kontrol edilmeli.
+- [x] **Adversarial review + kritik bug düzeltildi** ✅ (2026-08-12) —
+      bağımsız review agent'ı (Codex hâlâ limitli): `Main.java`'daki
+      backoffice wiring, gerçek OAuth token'ının bulunduğu
+      `config/tokens/velzon-youtube/` yerine yanlışlıkla var olmayan
+      `config/velzon-youtube/`'a bakıyordu (`"tokens/"` öneki eksikti) —
+      prod'da headless sunucuda ya tarayıcı açmaya çalışıp donma/çökme,
+      ya da sessizce "yapılandırılmamış" görünme riski. Düzeltildi +
+      canlı doğrulandı (`serve` başlatılıp log'da "OAuth2 authorization
+      successful" + "Velzon YouTube backoffice section enabled" görüldü,
+      tarayıcı hiç açılmadı — mevcut token sessizce yüklendi). 221/221 yeşil.
+- [ ] Canlı ilk video denemesi (gerçek ffmpeg/ElevenLabs/görsel API +
+      gerçek YouTube upload ile uçtan uca doğrulama — boş .ass riski de
+      bu adımda netleşecek).
 
 ### Velzon Instagram — kurulum tamamlandı, kod agent'ta
 - [x] Meta app "Velzon Social Publisher" oluşturuldu (App ID 1984849792233808,
