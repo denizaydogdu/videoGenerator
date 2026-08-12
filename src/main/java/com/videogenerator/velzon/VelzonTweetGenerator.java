@@ -15,29 +15,50 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Velzon (fintech/e-fatura şirketi) için X (Twitter) tweet taslakları
- * üretir — Pinterest deseninin metin-only versiyonu (görsel yok).
+ * Velzon (BIST — Borsa İstanbul — analiz terminali: endeksler, teknik/temel
+ * göstergeler, AI destekli hisse skorlama, portföy araçları, Pine Script
+ * tabanlı özel gösterge eğitimi; TradingView/Fintables benzeri bir ürün)
+ * için X (Twitter) tweet taslakları üretir — Pinterest deseninin metin-only
+ * versiyonu (görsel yok).
+ *
+ * Girdi artık serbest bir "niche" ifadesi DEĞİL: Velzon'un kendi bilgi
+ * merkezinden (VelzonKnowledgeBaseClient) çekilmiş GERÇEK bir makalenin tam
+ * metni (başlık + gövde) — bkz. generateBatch javadoc'u.
  *
  * Otomatik gönderim YOK: taslaklar manifest.json'a yazılır, backoffice'te
  * insan onayından (Yayınla tıklaması) geçmeden gerçek hesaba gitmez —
- * finans şirketi hesabının yanlış/yanıltıcı bilgi paylaşma riski,
- * maliyetten (X API ucuz) çok daha önemli bir güvenlik kapısı.
+ * bir yatırım/borsa platformu hesabının yanlış/yanıltıcı bilgi paylaşma
+ * riski, maliyetten (X API ucuz) çok daha önemli bir güvenlik kapısı.
  */
 public class VelzonTweetGenerator {
     private static final Logger logger = LoggerFactory.getLogger(VelzonTweetGenerator.class);
     private static final int MAX_TWEET_LEN = 280;
     private static final String SYSTEM = """
-            You write X (Twitter) posts for Velzon, a Turkish fintech / e-invoicing
-            (e-fatura) company, in Turkish. Educational, general-practice tone about
-            e-fatura, muhasebe otomasyonu, and KOBİ finans yönetimi.
+            You write X (Twitter) posts for Velzon, a Turkish BIST (Borsa İstanbul)
+            stock-market analysis terminal, in Turkish. Velzon provides real-time
+            index tracking, AI-assisted stock scoring, technical/fundamental
+            indicators, portfolio tools, and Pine-Script-based custom indicator
+            education — think TradingView/Fintables, but focused on the Turkish
+            market.
 
-            HARD RULES (violations are unacceptable for a financial company's account):
-            - NEVER state specific tax rates, KDV percentages, or legal/tax figures —
-              they change over time and could mislead readers.
-            - NEVER give definitive legal or tax advice — use general, educational
-              phrasing, not prescriptive claims.
+            Your input is the full text of ONE REAL Velzon knowledge-base article
+            (its title, then its body). Your job is to summarize and adapt THAT
+            article's actual content into tweet ideas — do NOT invent a new topic,
+            and do NOT add facts, figures, or claims that are not present in the
+            article text. Stay faithful to what the article actually says.
+
+            HARD RULES (violations are unacceptable for a stock-market platform's account):
+            - NEVER recommend buying or selling any specific stock, or imply a
+              stock is a good/bad investment right now.
+            - NEVER claim or imply guaranteed returns, guaranteed accuracy, or
+              guaranteed prediction outcomes.
+            - NEVER fabricate performance statistics, win rates, or numbers that
+              are not explicitly present in the source article.
+            - NEVER give this the tone of personalized investment advice — keep it
+              educational/informational (what a term means, how an indicator
+              works, how a platform feature works), never "you should do X with
+              your money."
             - NEVER mention competitor company names.
-            - NEVER fabricate customer testimonials, statistics, or specific numbers.
             - Each tweet must be 280 characters or fewer (hard platform limit) —
               count carefully, this is not negotiable.
 
@@ -53,12 +74,25 @@ public class VelzonTweetGenerator {
         this.llm = llm;
     }
 
+    /**
+     * @param topicPrompt the full text of ONE real Velzon knowledge-base
+     *                     article (title + body, concatenated) — NOT a free
+     *                     invented topic. Callers should fetch this via
+     *                     VelzonKnowledgeBaseClient.fetchArticle(path) first.
+     */
     public List<Tweet> generateBatch(String topicPrompt, int count, Path outDir) throws Exception {
         String user = String.format("""
-                Generate %d tweet ideas about: %s.
+                Below is the full text of a real Velzon knowledge-base article
+                (title, then body). Generate %d tweet ideas that summarize or
+                adapt THIS article's actual content for X (Twitter) — different
+                angles on the same article, not unrelated topics.
+
+                --- ARTICLE START ---
+                %s
+                --- ARTICLE END ---
 
                 Each idea needs:
-                - "topic": short internal label for this tweet's theme
+                - "topic": short internal label for this tweet's angle on the article
                 - "text": the tweet body in Turkish, 280 chars or fewer
 
                 JSON shape: {"tweets":[{"topic":"...","text":"..."}]}

@@ -573,6 +573,14 @@ public class Main {
                     service, launcher, publishLauncher, config.getBackofficePort())
                     .withStats(buildStatsCollector(config));
 
+            // Herkese açık, kimlik doğrulama gerektirmeyen bir site — X/Instagram/
+            // YouTube üretimlerinden bağımsız olarak her zaman kurulur, çünkü
+            // makale seçici bunlardan herhangi biri etkinken çalışabilmeli.
+            var velzonKnowledgeBaseClient = new com.videogenerator.velzon.VelzonKnowledgeBaseClient(
+                    new com.videogenerator.velzon.VelzonKnowledgeBaseHttp());
+            server.withVelzonKnowledgeBase(velzonKnowledgeBaseClient);
+            logger.info("Velzon knowledge-base article picker enabled");
+
             var pinterestExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
             var pinterestClient = buildPinterestClient(config);
             if (pinterestClient != null) {
@@ -606,14 +614,16 @@ public class Main {
                         xClient, java.nio.file.Path.of(
                                 config.get("velzon.output.dir", "output/velzon")));
                 com.videogenerator.web.BackofficeServer.VelzonBatchLauncher velzonGenerator =
-                        (topic, count) -> velzonExecutor.submit(() -> {
+                        (articlePath, count) -> velzonExecutor.submit(() -> {
                             try {
+                                var article = velzonKnowledgeBaseClient.fetchArticle(articlePath);
+                                String topicPrompt = article.title() + "\n\n" + article.content();
                                 var gen = new com.videogenerator.velzon.VelzonTweetGenerator(
                                         new com.videogenerator.api.OpenAiGptClient());
                                 var outDir = java.nio.file.Path.of(
                                         config.get("velzon.output.dir", "output/velzon"),
                                         "batch-" + System.currentTimeMillis());
-                                gen.generateBatch(topic, count, outDir);
+                                gen.generateBatch(topicPrompt, count, outDir);
                             } catch (Exception e) {
                                 logger.error("Velzon tweet batch generation failed", e);
                             }
@@ -633,15 +643,17 @@ public class Main {
                                 "output/velzon-instagram")),
                         config.get("velzon.ig.public.base.url", "https://shorts.velzon.tr"));
                 com.videogenerator.web.BackofficeServer.VelzonInstagramBatchLauncher
-                        velzonInstagramGenerator = (topic, count) -> velzonInstagramExecutor.submit(() -> {
+                        velzonInstagramGenerator = (articlePath, count) -> velzonInstagramExecutor.submit(() -> {
                             try {
+                                var article = velzonKnowledgeBaseClient.fetchArticle(articlePath);
+                                String topicPrompt = article.title() + "\n\n" + article.content();
                                 var gen = new com.videogenerator.velzon.VelzonInstagramPostGenerator(
                                         new com.videogenerator.api.OpenAiGptClient(),
                                         new com.videogenerator.api.ImageApiClient());
                                 var outDir = java.nio.file.Path.of(
                                         config.get("velzon.ig.output.dir", "output/velzon-instagram"),
                                         "batch-" + System.currentTimeMillis());
-                                gen.generateBatch(topic, count, outDir);
+                                gen.generateBatch(topicPrompt, count, outDir);
                             } catch (Exception e) {
                                 logger.error("Velzon Instagram batch generation failed", e);
                             }
@@ -670,14 +682,16 @@ public class Main {
                             java.nio.file.Path.of(config.get("velzon.youtube.output.dir",
                                     "output/velzon-youtube")));
                     com.videogenerator.web.BackofficeServer.VelzonYoutubeBatchLauncher
-                            velzonYoutubeGenerator = (topic, count) -> velzonYoutubeExecutor.submit(() -> {
+                            velzonYoutubeGenerator = (articlePath, count) -> velzonYoutubeExecutor.submit(() -> {
                                 try {
+                                    var article = velzonKnowledgeBaseClient.fetchArticle(articlePath);
+                                    String topicPrompt = article.title() + "\n\n" + article.content();
                                     var gen = new com.videogenerator.velzon.VelzonYoutubeScriptGenerator(
                                             new com.videogenerator.api.OpenAiGptClient());
                                     var outDir = java.nio.file.Path.of(
                                             config.get("velzon.youtube.output.dir", "output/velzon-youtube"),
                                             "batch-" + System.currentTimeMillis());
-                                    gen.generateBatch(topic, count, outDir);
+                                    gen.generateBatch(topicPrompt, count, outDir);
                                 } catch (Exception e) {
                                     logger.error("Velzon YouTube batch generation failed", e);
                                 }

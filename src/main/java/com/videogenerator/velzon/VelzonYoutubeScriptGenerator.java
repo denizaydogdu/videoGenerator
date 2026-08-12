@@ -15,10 +15,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Velzon (fintech/e-fatura şirketi) için YouTube Shorts video "senaryoları"
+ * Velzon (BIST — Borsa İstanbul — analiz terminali: endeksler, teknik/temel
+ * göstergeler, AI destekli hisse skorlama, portföy araçları, Pine Script
+ * tabanlı özel gösterge eğitimi) için YouTube Shorts video "senaryoları"
  * üretir — VelzonInstagramPostGenerator'ın güvenlik kurallarını, ~30-45
  * saniyelik sesli anlatım (narration) + tek arkaplan görseli formatına
  * uyarlar.
+ *
+ * Girdi artık serbest bir "niche" ifadesi DEĞİL: Velzon'un kendi bilgi
+ * merkezinden (VelzonKnowledgeBaseClient) çekilmiş GERÇEK bir makalenin tam
+ * metni (başlık + gövde) — bkz. generateBatch javadoc'u.
  *
  * KASITLI OLARAK ImageGenerator BAĞIMLILIĞI YOK: Instagram/Pinterest
  * üreteçlerinin aksine bu sınıf, parti üretimi sırasında görsel/seslendirme/
@@ -35,17 +41,32 @@ import java.util.List;
 public class VelzonYoutubeScriptGenerator {
     private static final Logger logger = LoggerFactory.getLogger(VelzonYoutubeScriptGenerator.class);
     private static final String SYSTEM = """
-            You write short spoken video scripts for Velzon, a Turkish fintech / e-invoicing
-            (e-fatura) company's YouTube Shorts channel, in Turkish. Educational, general-practice
-            tone about e-fatura, muhasebe otomasyonu, and KOBİ finans yönetimi.
+            You write short spoken video scripts for Velzon, a Turkish BIST
+            (Borsa İstanbul) stock-market analysis terminal's YouTube Shorts
+            channel, in Turkish. Velzon provides real-time index tracking,
+            AI-assisted stock scoring, technical/fundamental indicators, portfolio
+            tools, and Pine-Script-based custom indicator education — think
+            TradingView/Fintables, but focused on the Turkish market.
 
-            HARD RULES (violations are unacceptable for a financial company's account):
-            - NEVER state specific tax rates, KDV percentages, or legal/tax figures —
-              they change over time and could mislead readers.
-            - NEVER give definitive legal or tax advice — use general, educational
-              phrasing, not prescriptive claims.
+            Your input is the full text of ONE REAL Velzon knowledge-base article
+            (its title, then its body). Your job is to summarize and adapt THAT
+            article's actual content into a spoken video script — do NOT invent a
+            new topic, and do NOT add facts, figures, or claims that are not
+            present in the article text. Stay faithful to what the article
+            actually says.
+
+            HARD RULES (violations are unacceptable for a stock-market platform's account):
+            - NEVER recommend buying or selling any specific stock, or imply a
+              stock is a good/bad investment right now.
+            - NEVER claim or imply guaranteed returns, guaranteed accuracy, or
+              guaranteed prediction outcomes.
+            - NEVER fabricate performance statistics, win rates, or numbers that
+              are not explicitly present in the source article.
+            - NEVER give this the tone of personalized investment advice — keep it
+              educational/informational (what a term means, how an indicator
+              works, how a platform feature works), never "you should do X with
+              your money."
             - NEVER mention competitor company names.
-            - NEVER fabricate customer testimonials, statistics, or specific numbers.
 
             Each script needs:
             - "narration": spoken narration text in Turkish, meant to be read aloud in
@@ -53,13 +74,14 @@ public class VelzonYoutubeScriptGenerator {
               words. Do not write something wildly shorter or longer than that.
             - "title": a compelling YouTube title in Turkish, under 100 characters
             - "description": a short YouTube description in Turkish
-            - "hashtags": 3-6 relevant Turkish fintech/e-fatura hashtags
-              (e.g. #efatura #muhasebe #kobi #fintech)
+            - "hashtags": 3-6 relevant Turkish BIST/trading hashtags
+              (e.g. #borsa #bist100 #yatirim #hisse #teknikanaliz)
             - "imagePrompt": a photorealistic, brand-safe image prompt describing a
-              SINGLE calm background scene (office/finance/desk/dashboard imagery),
-              NO people/faces, NO text overlays, vertical 9:16 framing — it becomes
-              a single still image that is slowly zoomed/panned (Ken Burns effect)
-              behind the whole video, so avoid busy multi-subject scenes.
+              SINGLE calm background scene (stock market / trading terminal /
+              candlestick chart / financial dashboard imagery), NO people/faces,
+              NO text overlays, vertical 9:16 framing — it becomes a single still
+              image that is slowly zoomed/panned (Ken Burns effect) behind the
+              whole video, so avoid busy multi-subject scenes.
 
             Respond with ONLY valid JSON, no markdown fences.""";
 
@@ -74,9 +96,22 @@ public class VelzonYoutubeScriptGenerator {
         this.llm = llm;
     }
 
+    /**
+     * @param topicPrompt the full text of ONE real Velzon knowledge-base
+     *                     article (title + body, concatenated) — NOT a free
+     *                     invented topic. Callers should fetch this via
+     *                     VelzonKnowledgeBaseClient.fetchArticle(path) first.
+     */
     public List<Script> generateBatch(String topicPrompt, int count, Path outDir) throws Exception {
         String user = String.format("""
-                Generate %d YouTube Shorts video script ideas about: %s.
+                Below is the full text of a real Velzon knowledge-base article
+                (title, then body). Generate %d YouTube Shorts video script ideas
+                that summarize or adapt THIS article's actual content — different
+                angles on the same article, not unrelated topics.
+
+                --- ARTICLE START ---
+                %s
+                --- ARTICLE END ---
 
                 JSON shape: {"scripts":[{"narration":"...","title":"...",
                 "description":"...","hashtags":["...","..."],"imagePrompt":"..."}]}

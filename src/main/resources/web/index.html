@@ -212,12 +212,13 @@
   <form method="dialog">
     <h3>Yeni Velzon X partisi</h3>
     <label class="field">
-      <span>Konu / tema açıklaması</span>
-      <textarea id="velzon-topic" rows="3"
-        placeholder="e-fatura avantajları, KOBİ muhasebe otomasyonu ipuçları"></textarea>
+      <span>Kaynak makale (Velzon bilgi merkezi)</span>
+      <input id="velzon-article" list="velzon-article-list" autocomplete="off"
+        placeholder="Makale başlığı yazmaya başlayın...">
+      <datalist id="velzon-article-list"></datalist>
     </label>
     <label class="field">
-      <span>Tweet sayısı</span>
+      <span>Bu makaleden kaç tweet üretilsin</span>
       <input id="velzon-count" type="number" min="1" max="20" value="5">
     </label>
     <div class="actions">
@@ -231,12 +232,13 @@
   <form method="dialog">
     <h3>Yeni Velzon Instagram partisi</h3>
     <label class="field">
-      <span>Konu / tema açıklaması</span>
-      <textarea id="velzon-instagram-topic" rows="3"
-        placeholder="e-fatura avantajları, KOBİ muhasebe otomasyonu ipuçları"></textarea>
+      <span>Kaynak makale (Velzon bilgi merkezi)</span>
+      <input id="velzon-instagram-article" list="velzon-instagram-article-list" autocomplete="off"
+        placeholder="Makale başlığı yazmaya başlayın...">
+      <datalist id="velzon-instagram-article-list"></datalist>
     </label>
     <label class="field">
-      <span>Gönderi sayısı</span>
+      <span>Bu makaleden kaç gönderi üretilsin</span>
       <input id="velzon-instagram-count" type="number" min="1" max="20" value="5">
     </label>
     <div class="actions">
@@ -250,12 +252,13 @@
   <form method="dialog">
     <h3>Yeni Velzon YouTube partisi</h3>
     <label class="field">
-      <span>Konu / tema açıklaması</span>
-      <textarea id="velzon-youtube-topic" rows="3"
-        placeholder="e-fatura avantajları, KOBİ muhasebe otomasyonu ipuçları"></textarea>
+      <span>Kaynak makale (Velzon bilgi merkezi)</span>
+      <input id="velzon-youtube-article" list="velzon-youtube-article-list" autocomplete="off"
+        placeholder="Makale başlığı yazmaya başlayın...">
+      <datalist id="velzon-youtube-article-list"></datalist>
     </label>
     <label class="field">
-      <span>Senaryo sayısı</span>
+      <span>Bu makaleden kaç senaryo üretilsin</span>
       <input id="velzon-youtube-count" type="number" min="1" max="20" value="5">
     </label>
     <div class="actions">

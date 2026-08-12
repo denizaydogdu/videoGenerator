@@ -104,15 +104,15 @@ class VelzonBackofficeTest {
     @Test
     void triggersGeneration() throws Exception {
         HttpResponse<String> res = post("/api/velzon/generate",
-                "{\"topic\":\"e-fatura ipuçları\",\"count\":3}");
+                "{\"articlePath\":\"/bilgi-merkezi/borsa-terimleri/acente-nedir/\",\"count\":3}");
 
         assertEquals(202, res.statusCode());
         assertEquals(1, generateCalls.size());
-        assertEquals("e-fatura ipuçları|3", generateCalls.get(0));
+        assertEquals("/bilgi-merkezi/borsa-terimleri/acente-nedir/|3", generateCalls.get(0));
     }
 
     @Test
-    void requiresTopicForGeneration() throws Exception {
+    void requiresArticlePathForGeneration() throws Exception {
         HttpResponse<String> res = post("/api/velzon/generate", "{}");
 
         assertEquals(400, res.statusCode());

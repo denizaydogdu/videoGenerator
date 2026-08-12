@@ -16,9 +16,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Velzon (fintech/e-fatura şirketi) için Instagram gönderi taslakları
- * üretir — Pinterest'in görsel+metin şeklini, VelzonTweetGenerator'ın
- * güvenlik kurallarıyla birleştirir.
+ * Velzon (BIST — Borsa İstanbul — analiz terminali: endeksler, teknik/temel
+ * göstergeler, AI destekli hisse skorlama, portföy araçları, Pine Script
+ * tabanlı özel gösterge eğitimi) için Instagram gönderi taslakları üretir —
+ * Pinterest'in görsel+metin şeklini, VelzonTweetGenerator'ın güvenlik
+ * kurallarıyla birleştirir.
+ *
+ * Girdi artık serbest bir "niche" ifadesi DEĞİL: Velzon'un kendi bilgi
+ * merkezinden (VelzonKnowledgeBaseClient) çekilmiş GERÇEK bir makalenin tam
+ * metni (başlık + gövde) — bkz. generateBatch javadoc'u.
  *
  * Otomatik gönderim YOK: taslaklar manifest.json'a yazılır, backoffice'te
  * insan onayından (Yayınla tıklaması) geçmeden gerçek hesaba gitmez —
@@ -32,20 +38,35 @@ import java.util.List;
 public class VelzonInstagramPostGenerator {
     private static final Logger logger = LoggerFactory.getLogger(VelzonInstagramPostGenerator.class);
     private static final String SYSTEM = """
-            You write Instagram posts for Velzon, a Turkish fintech / e-invoicing
-            (e-fatura) company, in Turkish. Educational, general-practice tone about
-            e-fatura, muhasebe otomasyonu, and KOBİ finans yönetimi.
+            You write Instagram posts for Velzon, a Turkish BIST (Borsa İstanbul)
+            stock-market analysis terminal, in Turkish. Velzon provides real-time
+            index tracking, AI-assisted stock scoring, technical/fundamental
+            indicators, portfolio tools, and Pine-Script-based custom indicator
+            education — think TradingView/Fintables, but focused on the Turkish
+            market.
 
-            HARD RULES (violations are unacceptable for a financial company's account):
-            - NEVER state specific tax rates, KDV percentages, or legal/tax figures —
-              they change over time and could mislead readers.
-            - NEVER give definitive legal or tax advice — use general, educational
-              phrasing, not prescriptive claims.
+            Your input is the full text of ONE REAL Velzon knowledge-base article
+            (its title, then its body). Your job is to summarize and adapt THAT
+            article's actual content into Instagram post ideas — do NOT invent a
+            new topic, and do NOT add facts, figures, or claims that are not
+            present in the article text. Stay faithful to what the article
+            actually says.
+
+            HARD RULES (violations are unacceptable for a stock-market platform's account):
+            - NEVER recommend buying or selling any specific stock, or imply a
+              stock is a good/bad investment right now.
+            - NEVER claim or imply guaranteed returns, guaranteed accuracy, or
+              guaranteed prediction outcomes.
+            - NEVER fabricate performance statistics, win rates, or numbers that
+              are not explicitly present in the source article.
+            - NEVER give this the tone of personalized investment advice — keep it
+              educational/informational (what a term means, how an indicator
+              works, how a platform feature works), never "you should do X with
+              your money."
             - NEVER mention competitor company names.
-            - NEVER fabricate customer testimonials, statistics, or specific numbers.
-            - Each caption should end with 3-8 relevant Turkish fintech/e-fatura
-              hashtags (e.g. #efatura #muhasebe #kobi #fintech) — do not invent
-              engagement-bait hashtags unrelated to the topic.
+            - Each caption should end with 3-8 relevant Turkish BIST/trading
+              hashtags (e.g. #borsa #bist100 #yatirim #hisse #teknikanaliz) — do
+              not invent engagement-bait hashtags unrelated to the topic.
 
             Respond with ONLY valid JSON, no markdown fences.""";
 
@@ -61,16 +82,30 @@ public class VelzonInstagramPostGenerator {
         this.imageGen = imageGen;
     }
 
+    /**
+     * @param topicPrompt the full text of ONE real Velzon knowledge-base
+     *                     article (title + body, concatenated) — NOT a free
+     *                     invented topic. Callers should fetch this via
+     *                     VelzonKnowledgeBaseClient.fetchArticle(path) first.
+     */
     public List<Post> generateBatch(String topicPrompt, int count, Path outDir) throws Exception {
         String user = String.format("""
-                Generate %d Instagram post ideas about: %s.
+                Below is the full text of a real Velzon knowledge-base article
+                (title, then body). Generate %d Instagram post ideas that
+                summarize or adapt THIS article's actual content — different
+                angles on the same article, not unrelated topics.
+
+                --- ARTICLE START ---
+                %s
+                --- ARTICLE END ---
 
                 Each idea needs:
                 - "caption": the Instagram caption in Turkish, educational and
                   non-promotional in tone, ending with 3-8 relevant hashtags
                 - "imagePrompt": a photorealistic, brand-safe image prompt
-                  (office/finance/desk/dashboard imagery), NO people/faces, NO text
-                  overlays, square 1:1 framing
+                  (stock market / trading terminal / candlestick chart / financial
+                  dashboard imagery), NO people/faces, NO text overlays, square
+                  1:1 framing
 
                 JSON shape: {"posts":[{"caption":"...","imagePrompt":"..."}]}
                 """, count, topicPrompt);

@@ -51,29 +51,43 @@ public class BackofficeServer {
     private com.videogenerator.pinterest.PinterestPublishService pinterestService; // opsiyonel
     private PinterestBatchLauncher pinterestGenerator; // opsiyonel
 
-    /** Velzon tweet partisi üretimini arka planda tetikler. */
+    /**
+     * Velzon tweet partisi üretimini arka planda tetikler. articlePath,
+     * Velzon bilgi merkezindeki seçili makalenin göreli yoludur (ör.
+     * "/bilgi-merkezi/borsa-terimleri/acente-nedir/") — serbest metin bir
+     * "topic" DEĞİL. Makalenin tam metnini çekip generateBatch'e geçirmek
+     * bu launcher'ın implementasyonunun (Main'de) işidir.
+     */
     public interface VelzonBatchLauncher {
-        void launch(String topicPrompt, int count);
+        void launch(String articlePath, int count);
     }
 
     private com.videogenerator.velzon.VelzonPublishService velzonService; // opsiyonel
     private VelzonBatchLauncher velzonGenerator; // opsiyonel
 
-    /** Velzon Instagram gönderi partisi üretimini arka planda tetikler. */
+    /** Velzon Instagram gönderi partisi üretimini arka planda tetikler — bkz. VelzonBatchLauncher javadoc'u. */
     public interface VelzonInstagramBatchLauncher {
-        void launch(String topicPrompt, int count);
+        void launch(String articlePath, int count);
     }
 
     private com.videogenerator.velzon.VelzonInstagramPublishService velzonInstagramService; // opsiyonel
     private VelzonInstagramBatchLauncher velzonInstagramGenerator; // opsiyonel
 
-    /** Velzon YouTube senaryo partisi üretimini arka planda tetikler. */
+    /** Velzon YouTube senaryo partisi üretimini arka planda tetikler — bkz. VelzonBatchLauncher javadoc'u. */
     public interface VelzonYoutubeBatchLauncher {
-        void launch(String topicPrompt, int count);
+        void launch(String articlePath, int count);
     }
 
     private com.videogenerator.velzon.VelzonYoutubePublishService velzonYoutubeService; // opsiyonel
     private VelzonYoutubeBatchLauncher velzonYoutubeGenerator; // opsiyonel
+
+    // Velzon'un gerçek bilgi merkezi makalelerini listeler; X/Instagram/YouTube
+    // "Yeni parti üret" diyaloglarındaki serbest metin alanı yerine kullanılır.
+    private com.videogenerator.velzon.VelzonKnowledgeBaseClient velzonKnowledgeBaseClient; // opsiyonel
+    // İlk istekte doldurulur, süresiz cache'lenir (tek kullanıcılı iç araç —
+    // PinterestPublishService'teki basitlik seviyesiyle tutarlı, aşırı
+    // mühendislik yapılmadı). Sunucuyu yeniden başlatmak listeyi tazeler.
+    private List<com.videogenerator.velzon.VelzonKnowledgeBaseClient.Article> cachedVelzonArticles;
 
     public BackofficeServer withStats(StatsCollector collector) {
         this.statsCollector = collector;
@@ -111,6 +125,13 @@ public class BackofficeServer {
         this.velzonYoutubeGenerator = velzonYoutubeGenerator;
         return this;
     }
+
+    public BackofficeServer withVelzonKnowledgeBase(
+            com.videogenerator.velzon.VelzonKnowledgeBaseClient velzonKnowledgeBaseClient) {
+        this.velzonKnowledgeBaseClient = velzonKnowledgeBaseClient;
+        return this;
+    }
+
     private HttpServer httpServer;
     private java.util.concurrent.ExecutorService executor;
 
@@ -162,6 +183,10 @@ public class BackofficeServer {
             }
             if (seg.length >= 3 && "velzon-instagram".equals(seg[2])) {
                 handleVelzonInstagramApi(ex, method, seg);
+                return;
+            }
+            if (seg.length >= 3 && "velzon-knowledge-base".equals(seg[2])) {
+                handleVelzonKnowledgeBaseApi(ex, method, seg);
                 return;
             }
             if (seg.length >= 3 && "velzon-youtube".equals(seg[2])) {
@@ -460,6 +485,44 @@ public class BackofficeServer {
         }
     }
 
+    // ==================== Velzon Knowledge Base ====================
+
+    /**
+     * Velzon'un gerçek bilgi merkezi makalelerini (başlık + yol) döner —
+     * X/Instagram/YouTube "Yeni parti üret" diyaloglarındaki makale seçici
+     * bu listeyle beslenir. İçerik (article body) burada YOK: listArticles()
+     * ~400 makaleyi tek tek indirmez, tam metin yalnızca generate sırasında
+     * seçilen tek makale için VelzonKnowledgeBaseClient.fetchArticle() ile
+     * çekilir (bkz. Main'deki batch launcher'lar).
+     */
+    private void handleVelzonKnowledgeBaseApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (velzonKnowledgeBaseClient == null) {
+            sendError(ex, 503, "Velzon knowledge base not configured");
+            return;
+        }
+        if (seg.length == 4 && "articles".equals(seg[3])) {
+            requireGet(ex, method, () -> sendJson(ex, 200, velzonKbArticlesJson()));
+            return;
+        }
+        sendError(ex, 404, "Unknown resource");
+    }
+
+    private String velzonKbArticlesJson() {
+        List<Map<String, String>> rows = cachedVelzonArticles().stream()
+                .map(a -> Map.of("title", a.title(), "path", a.path()))
+                .toList();
+        return gson.toJson(rows);
+    }
+
+    private synchronized List<com.videogenerator.velzon.VelzonKnowledgeBaseClient.Article>
+            cachedVelzonArticles() {
+        if (cachedVelzonArticles == null) {
+            cachedVelzonArticles = unchecked(velzonKnowledgeBaseClient::listArticles);
+        }
+        return cachedVelzonArticles;
+    }
+
     // ==================== Velzon (X/Twitter) ====================
 
     private void handleVelzonApi(HttpExchange ex, String method, String[] seg)
@@ -491,16 +554,16 @@ public class BackofficeServer {
 
     private void generateVelzonBatch(HttpExchange ex) throws IOException {
         JsonObject body = readJson(ex);
-        String topic = body.has("topic") ? body.get("topic").getAsString() : null;
-        if (topic == null || topic.isBlank()) {
-            throw new IllegalArgumentException("topic is required");
+        String articlePath = body.has("articlePath") ? body.get("articlePath").getAsString() : null;
+        if (articlePath == null || articlePath.isBlank()) {
+            throw new IllegalArgumentException("articlePath is required");
         }
         int count = body.has("count") ? body.get("count").getAsInt() : 5;
         if (velzonGenerator == null) {
             sendError(ex, 503, "Velzon generator not configured");
             return;
         }
-        velzonGenerator.launch(topic, count);
+        velzonGenerator.launch(articlePath, count);
         sendJson(ex, 202, "{\"queued\":true}");
     }
 
@@ -554,16 +617,16 @@ public class BackofficeServer {
 
     private void generateVelzonInstagramBatch(HttpExchange ex) throws IOException {
         JsonObject body = readJson(ex);
-        String topic = body.has("topic") ? body.get("topic").getAsString() : null;
-        if (topic == null || topic.isBlank()) {
-            throw new IllegalArgumentException("topic is required");
+        String articlePath = body.has("articlePath") ? body.get("articlePath").getAsString() : null;
+        if (articlePath == null || articlePath.isBlank()) {
+            throw new IllegalArgumentException("articlePath is required");
         }
         int count = body.has("count") ? body.get("count").getAsInt() : 5;
         if (velzonInstagramGenerator == null) {
             sendError(ex, 503, "Velzon Instagram generator not configured");
             return;
         }
-        velzonInstagramGenerator.launch(topic, count);
+        velzonInstagramGenerator.launch(articlePath, count);
         sendJson(ex, 202, "{\"queued\":true}");
     }
 
@@ -635,16 +698,16 @@ public class BackofficeServer {
 
     private void generateVelzonYoutubeBatch(HttpExchange ex) throws IOException {
         JsonObject body = readJson(ex);
-        String topic = body.has("topic") ? body.get("topic").getAsString() : null;
-        if (topic == null || topic.isBlank()) {
-            throw new IllegalArgumentException("topic is required");
+        String articlePath = body.has("articlePath") ? body.get("articlePath").getAsString() : null;
+        if (articlePath == null || articlePath.isBlank()) {
+            throw new IllegalArgumentException("articlePath is required");
         }
         int count = body.has("count") ? body.get("count").getAsInt() : 5;
         if (velzonYoutubeGenerator == null) {
             sendError(ex, 503, "Velzon YouTube generator not configured");
             return;
         }
-        velzonYoutubeGenerator.launch(topic, count);
+        velzonYoutubeGenerator.launch(articlePath, count);
         sendJson(ex, 202, "{\"queued\":true}");
     }
 

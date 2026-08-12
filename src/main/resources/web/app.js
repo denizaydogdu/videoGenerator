@@ -509,6 +509,42 @@ async function submitPinterestGenerate() {
   }
 }
 
+// ---------- Velzon Knowledge Base (paylaşılan makale seçici) ----------
+// X/Instagram/YouTube üç ayrı diyalog kullanır ama aynı makale listesini
+// paylaşır — tek fetch, tek in-memory title->path map yeterli.
+let velzonArticlesPromise = null;
+let velzonArticleTitleToPath = new Map();
+
+async function loadVelzonArticles() {
+  if (!velzonArticlesPromise) {
+    velzonArticlesPromise = api("/api/velzon-knowledge-base/articles")
+      .then((articles) => {
+        velzonArticleTitleToPath = new Map(articles.map((a) => [a.title, a.path]));
+        return articles;
+      })
+      .catch((e) => {
+        velzonArticlesPromise = null; // sonraki açılışta tekrar denensin
+        throw e;
+      });
+  }
+  return velzonArticlesPromise;
+}
+
+function populateVelzonArticleDatalist(datalistId, articles) {
+  const dl = $(datalistId);
+  dl.innerHTML = "";
+  for (const a of articles) {
+    const opt = document.createElement("option");
+    opt.value = a.title;
+    dl.appendChild(opt);
+  }
+}
+
+/** Diyalogdaki input'a yazılan başlığı gerçek makale yoluna çözer; eşleşme yoksa null. */
+function resolveVelzonArticlePath(typedTitle) {
+  return velzonArticleTitleToPath.get((typedTitle || "").trim()) || null;
+}
+
 // ---------- Velzon X ----------
 function showVelzonView() {
   state.job = null;
@@ -601,17 +637,25 @@ async function loadVelzonBatches() {
 function openVelzonGenerateDialog() {
   const dlg = $("dlg-velzon-generate");
   dlg.returnValue = "";
+  loadVelzonArticles()
+    .then((articles) => populateVelzonArticleDatalist("velzon-article-list", articles))
+    .catch((e) => toast(e.message, true));
   dlg.showModal();
 }
 
 async function submitVelzonGenerate() {
-  const topic = $("velzon-topic").value.trim();
+  const articleTitle = $("velzon-article").value.trim();
   const count = Number($("velzon-count").value) || 5;
-  if (!topic) return;
+  if (!articleTitle) return;
+  const articlePath = resolveVelzonArticlePath(articleTitle);
+  if (!articlePath) {
+    toast("Listeden gerçek bir makale seçmelisiniz", true);
+    return;
+  }
   try {
     await api("/api/velzon/generate", {
       method: "POST",
-      body: JSON.stringify({ topic, count }),
+      body: JSON.stringify({ articlePath, count }),
     });
     toast(`Parti kuyruğa alındı (${count} tweet) — birkaç dakika sürebilir, sonra Yenile'ye bas`);
   } catch (e) {
@@ -711,17 +755,25 @@ async function loadVelzonInstagramBatches() {
 function openVelzonInstagramGenerateDialog() {
   const dlg = $("dlg-velzon-instagram-generate");
   dlg.returnValue = "";
+  loadVelzonArticles()
+    .then((articles) => populateVelzonArticleDatalist("velzon-instagram-article-list", articles))
+    .catch((e) => toast(e.message, true));
   dlg.showModal();
 }
 
 async function submitVelzonInstagramGenerate() {
-  const topic = $("velzon-instagram-topic").value.trim();
+  const articleTitle = $("velzon-instagram-article").value.trim();
   const count = Number($("velzon-instagram-count").value) || 5;
-  if (!topic) return;
+  if (!articleTitle) return;
+  const articlePath = resolveVelzonArticlePath(articleTitle);
+  if (!articlePath) {
+    toast("Listeden gerçek bir makale seçmelisiniz", true);
+    return;
+  }
   try {
     await api("/api/velzon-instagram/generate", {
       method: "POST",
-      body: JSON.stringify({ topic, count }),
+      body: JSON.stringify({ articlePath, count }),
     });
     toast(`Parti kuyruğa alındı (${count} gönderi) — birkaç dakika sürebilir, sonra Yenile'ye bas`);
   } catch (e) {
@@ -826,17 +878,25 @@ async function loadVelzonYoutubeBatches() {
 function openVelzonYoutubeGenerateDialog() {
   const dlg = $("dlg-velzon-youtube-generate");
   dlg.returnValue = "";
+  loadVelzonArticles()
+    .then((articles) => populateVelzonArticleDatalist("velzon-youtube-article-list", articles))
+    .catch((e) => toast(e.message, true));
   dlg.showModal();
 }
 
 async function submitVelzonYoutubeGenerate() {
-  const topic = $("velzon-youtube-topic").value.trim();
+  const articleTitle = $("velzon-youtube-article").value.trim();
   const count = Number($("velzon-youtube-count").value) || 5;
-  if (!topic) return;
+  if (!articleTitle) return;
+  const articlePath = resolveVelzonArticlePath(articleTitle);
+  if (!articlePath) {
+    toast("Listeden gerçek bir makale seçmelisiniz", true);
+    return;
+  }
   try {
     await api("/api/velzon-youtube/generate", {
       method: "POST",
-      body: JSON.stringify({ topic, count }),
+      body: JSON.stringify({ articlePath, count }),
     });
     toast(`Parti kuyruğa alındı (${count} senaryo) — birkaç dakika sürebilir, sonra Yenile'ye bas`);
   } catch (e) {
