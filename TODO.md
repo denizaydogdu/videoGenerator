@@ -5,8 +5,14 @@
 
 ## 1️⃣2️⃣ Velzon çoklu-platform genişlemesi (2026-08-12 başladı)
 
-Kullanıcının kendi şirketi Velzon (fintech/e-fatura) için görünürlük artırma
-işi büyüdü: X'ten sonra Instagram/YouTube/TikTok de eklenecek. Ayrıca
+**DÜZELTME (2026-08-12, oturum ilerlerken fark edildi):** Velzon
+e-fatura/muhasebe şirketi DEĞİL — **BIST borsa analiz terminali**
+(endeksler, hisse skorları, AI tahminleri, teknik göstergeler, Pine
+Script eğitimi, TradingView/Fintables benzeri). Erken bir varsayım
+hatası aşağıdaki maddelerde "e-fatura" diye geçiyor olabilir — o kısımlar
+tarihsel kayıt olarak bırakıldı, düzeltme detayı için "Velzon içerik
+kaynağı" bölümüne bak. Kullanıcının kendi şirketi Velzon için görünürlük
+artırma işi büyüdü: X'ten sonra Instagram/YouTube/TikTok de eklenecek. Ayrıca
 **yeni bir 3. firma: Scyborsa** (borsa uygulaması, iOS+Android canlı,
 mevcut hesaplar: https://x.com/scyborsa, https://www.tiktok.com/@scyborsa,
 https://www.instagram.com/scyborsa/, web: scyborsa.com) — aynı desenle
@@ -26,6 +32,36 @@ güncel veri, kurum adı ASLA yayınlanamaz — sadece kurumsuz/istatistiksel
 bulgular (T+2 mutabakatı, taban oranı vb.) güvenli. Detay: [[scyborsa-data-integration]].
 Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
 — sıra gelince değerlendirilecek.
+
+### Velzon içerik kaynağı — DÜZELTİLDİ: BIST terminali + gerçek makale kaynağı ✅ (2026-08-12)
+- [x] **Kritik yanlış varsayım düzeltildi:** Velzon = e-fatura/muhasebe
+      DEĞİL, BIST borsa analiz terminali (kanıt: velzon.tr/bilgi-merkezi/
+      — 434 gerçek makale, endeksler/hisse skorları/AI tahminleri/teknik
+      göstergeler/Pine Script eğitimi). Hata, erken bir oturumdaki yanlış
+      özetin sorgulanmadan tekrar kullanılmasından kaynaklandı —
+      `velzon-django` kodunda `gate.velzon.tr/api/chart/v2` (TradingView
+      borsa verisi) zaten görülmüştü ama çelişki fark edilmemişti. Ders
+      hafızaya kaydedildi ([[velzon-is-bist-terminal]]).
+- [x] **`VelzonKnowledgeBaseClient` yazıldı** — Jsoup ile Bilgi Merkezi'ni
+      (`velzon.tr/bilgi-merkezi/`) tarar, gerçek makale listesi + tam
+      metin çeker. `VelzonTweetGenerator`/`VelzonInstagramPostGenerator`/
+      `VelzonYoutubeScriptGenerator` yeniden temalandırıldı (BIST/yatırım
+      eğitimi, "yatırım tavsiyesi/garanti getiri/uydurma istatistik yok"
+      sert kuralları) — serbest metin "konu" kutusu yerine backoffice'te
+      gerçek makale seçici (datalist). Üretici imzaları değişmedi, sadece
+      LLM'e giden metin artık gerçek makale içeriği. 233 test yeşil (11 yeni).
+- [x] **Adversarial review + kritik bug düzeltildi** ✅ — bağımsız review
+      agent'ı canlı siteyi bizzat çekip test etti: `ARTICLE_PATH` regex'i
+      sadece 2 kategoriyi (borsa-terimleri, baslangic) sabit listelemiş,
+      canlı sitede olan 12+ kategoriyi (derecelendirmeler, indikatörler,
+      velzon-script-seviye-1..10) SESSİZCE dışlıyordu — "gerçek makale
+      havuzu kullan" hedefini yarı yarıya boşa çıkaran bir bug. Düzeltme:
+      kategori adı yerine yapısal kural (`/bilgi-merkezi/<kategori>/<slug>/`
+      = tam 2 segment). Canlı doğrulama: düzeltmeden önce ~50 makale,
+      sonra **434 makale, 14 kategori** doğru yakalanıyor. Yeni test
+      eklendi, 233/233 yeşil.
+- [ ] Prod sunucusuna deploy + canlı ilk içerik üretimi denemesi (yeni
+      makale seçici ile, gerçek bir Velzon makalesinden tweet/post/video).
 
 ### Velzon YouTube — OAuth tamamlandı, video pipeline sırada
 - [x] `velzon-youtube-auth` CLI komutu eklendi (Main.java) — YouTube'un
