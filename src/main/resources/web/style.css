@@ -266,3 +266,7 @@ dialog .field { margin-bottom:16px; }
 .velzon-tweet-text { font-size:14px; line-height:1.5; }
 .velzon-tweet-meta { font-size:12px; color:var(--text-dim); }
 .velzon-tweet-card .btn { align-self:flex-start; }
+
+/* Velzon Instagram — Pinterest'in pin-grid/pin-card'ını yeniden kullanır;
+   tek fark görsel oranı (Instagram 1:1 kare, Pinterest 2:3 dikey) */
+#velzon-instagram-batches .pinterest-pin-card img { aspect-ratio:1/1; }

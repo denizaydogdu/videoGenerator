@@ -165,6 +165,13 @@ public class Main {
             System.out.println("[FAIL] Channel profiles unreadable: " + e.getMessage());
             ok = false;
         }
+        String velzonIgToken = config.get("velzon.ig.access.token", "");
+        if (!velzonIgToken.isBlank()) {
+            System.out.println("[ok] Velzon Instagram configured (velzon.ig.access.token set)");
+        } else {
+            System.out.println("[info] Velzon Instagram not configured "
+                    + "(velzon.ig.access.token empty) — optional, section disabled in backoffice");
+        }
         System.out.println(ok ? "Validation OK" : "Validation FAILED");
         return ok;
     }
@@ -283,6 +290,23 @@ public class Main {
             System.out.println("ERROR: " + e.getMessage());
             System.exit(1);
         }
+    }
+
+    /**
+     * OAuth exchange akışı YOK — token zaten config'te uzun ömürlü ve
+     * doğrulanmış ("Instagram API with Instagram Login", Facebook Page
+     * gerektirmez). Bu yüzden pinterest-auth/velzon-x-auth gibi ayrı bir
+     * CLI komutu yok, sadece token varlığı kontrol edilir.
+     */
+    private static com.videogenerator.velzon.VelzonInstagramApiClient buildVelzonInstagramClient(
+            Configuration config) {
+        String token = config.get("velzon.ig.access.token", "");
+        if (token.isBlank()) {
+            return null;
+        }
+        return new com.videogenerator.velzon.VelzonInstagramApiClient(
+                new com.videogenerator.velzon.VelzonInstagramHttp(),
+                config.get("velzon.ig.user.id", ""), token);
     }
 
     private static com.videogenerator.velzon.XApiClient buildXApiClient(Configuration config) {
@@ -553,6 +577,35 @@ public class Main {
                 logger.info("Velzon not configured (x.client.id empty) — section disabled");
             }
 
+            var velzonInstagramExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+            var velzonInstagramClient = buildVelzonInstagramClient(config);
+            if (velzonInstagramClient != null) {
+                var velzonInstagramService = new com.videogenerator.velzon.VelzonInstagramPublishService(
+                        velzonInstagramClient,
+                        java.nio.file.Path.of(config.get("velzon.ig.output.dir",
+                                "output/velzon-instagram")),
+                        config.get("velzon.ig.public.base.url", "https://shorts.velzon.tr"));
+                com.videogenerator.web.BackofficeServer.VelzonInstagramBatchLauncher
+                        velzonInstagramGenerator = (topic, count) -> velzonInstagramExecutor.submit(() -> {
+                            try {
+                                var gen = new com.videogenerator.velzon.VelzonInstagramPostGenerator(
+                                        new com.videogenerator.api.OpenAiGptClient(),
+                                        new com.videogenerator.api.ImageApiClient());
+                                var outDir = java.nio.file.Path.of(
+                                        config.get("velzon.ig.output.dir", "output/velzon-instagram"),
+                                        "batch-" + System.currentTimeMillis());
+                                gen.generateBatch(topic, count, outDir);
+                            } catch (Exception e) {
+                                logger.error("Velzon Instagram batch generation failed", e);
+                            }
+                        });
+                server.withVelzonInstagram(velzonInstagramService, velzonInstagramGenerator);
+                logger.info("Velzon Instagram backoffice section enabled");
+            } else {
+                logger.info("Velzon Instagram not configured (velzon.ig.access.token empty)"
+                        + " — section disabled");
+            }
+
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -561,6 +614,7 @@ public class Main {
                 publishExecutor.shutdownNow();
                 pinterestExecutor.shutdownNow();
                 velzonExecutor.shutdownNow();
+                velzonInstagramExecutor.shutdownNow();
             }));
 
             System.out.println("========================================");

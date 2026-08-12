@@ -59,6 +59,14 @@ public class BackofficeServer {
     private com.videogenerator.velzon.VelzonPublishService velzonService; // opsiyonel
     private VelzonBatchLauncher velzonGenerator; // opsiyonel
 
+    /** Velzon Instagram gönderi partisi üretimini arka planda tetikler. */
+    public interface VelzonInstagramBatchLauncher {
+        void launch(String topicPrompt, int count);
+    }
+
+    private com.videogenerator.velzon.VelzonInstagramPublishService velzonInstagramService; // opsiyonel
+    private VelzonInstagramBatchLauncher velzonInstagramGenerator; // opsiyonel
+
     public BackofficeServer withStats(StatsCollector collector) {
         this.statsCollector = collector;
         return this;
@@ -77,6 +85,14 @@ public class BackofficeServer {
             VelzonBatchLauncher velzonGenerator) {
         this.velzonService = velzonService;
         this.velzonGenerator = velzonGenerator;
+        return this;
+    }
+
+    public BackofficeServer withVelzonInstagram(
+            com.videogenerator.velzon.VelzonInstagramPublishService velzonInstagramService,
+            VelzonInstagramBatchLauncher velzonInstagramGenerator) {
+        this.velzonInstagramService = velzonInstagramService;
+        this.velzonInstagramGenerator = velzonInstagramGenerator;
         return this;
     }
     private HttpServer httpServer;
@@ -126,6 +142,10 @@ public class BackofficeServer {
             String method = ex.getRequestMethod();
             if (seg.length >= 3 && "pinterest".equals(seg[2])) {
                 handlePinterestApi(ex, method, seg);
+                return;
+            }
+            if (seg.length >= 3 && "velzon-instagram".equals(seg[2])) {
+                handleVelzonInstagramApi(ex, method, seg);
                 return;
             }
             if (seg.length >= 3 && "velzon".equals(seg[2])) {
@@ -474,6 +494,85 @@ public class BackofficeServer {
         }
         var updated = unchecked(() -> velzonService.publishTweet(batchId, index));
         sendJson(ex, 200, gson.toJson(updated));
+    }
+
+    // ==================== Velzon Instagram ====================
+
+    private void handleVelzonInstagramApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (velzonInstagramService == null) {
+            sendError(ex, 503, "Velzon Instagram not configured");
+            return;
+        }
+        switch (seg.length) {
+            case 4 -> {
+                switch (seg[3]) {
+                    case "batches" -> requireGet(ex, method, () -> sendJson(ex, 200,
+                            gson.toJson(unchecked(velzonInstagramService::listBatches))));
+                    case "generate" -> requirePost(ex, method, () -> generateVelzonInstagramBatch(ex));
+                    default -> sendError(ex, 404, "Unknown resource");
+                }
+            }
+            case 7 -> {
+                if (!"batches".equals(seg[3]) || !"images".equals(seg[5])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requireGet(ex, method, () -> serveVelzonInstagramImage(ex, seg[4], seg[6]));
+            }
+            case 8 -> {
+                if (!"batches".equals(seg[3]) || !"posts".equals(seg[5])
+                        || !"publish".equals(seg[7])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requirePost(ex, method, () -> publishVelzonInstagramPost(ex, seg[4], seg[6]));
+            }
+            default -> sendError(ex, 404, "Unknown resource");
+        }
+    }
+
+    private void generateVelzonInstagramBatch(HttpExchange ex) throws IOException {
+        JsonObject body = readJson(ex);
+        String topic = body.has("topic") ? body.get("topic").getAsString() : null;
+        if (topic == null || topic.isBlank()) {
+            throw new IllegalArgumentException("topic is required");
+        }
+        int count = body.has("count") ? body.get("count").getAsInt() : 5;
+        if (velzonInstagramGenerator == null) {
+            sendError(ex, 503, "Velzon Instagram generator not configured");
+            return;
+        }
+        velzonInstagramGenerator.launch(topic, count);
+        sendJson(ex, 202, "{\"queued\":true}");
+    }
+
+    private void publishVelzonInstagramPost(HttpExchange ex, String batchId, String indexStr)
+            throws IOException {
+        int index;
+        try {
+            index = Integer.parseInt(indexStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid post index");
+        }
+        var updated = unchecked(() -> velzonInstagramService.publishPost(batchId, index));
+        sendJson(ex, 200, gson.toJson(updated));
+    }
+
+    private void serveVelzonInstagramImage(HttpExchange ex, String batchId, String file)
+            throws IOException {
+        java.nio.file.Path path = unchecked(
+                () -> velzonInstagramService.imageFile(batchId, file));
+        if (!java.nio.file.Files.exists(path)) {
+            sendError(ex, 404, "Image not found");
+            return;
+        }
+        byte[] bytes = java.nio.file.Files.readAllBytes(path);
+        ex.getResponseHeaders().set("Content-Type", "image/png");
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
+        }
     }
 
     // ==================== media ====================

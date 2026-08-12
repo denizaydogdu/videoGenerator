@@ -33,6 +33,7 @@
       <ul class="side-list">
         <li id="nav-pinterest">Pinterest</li>
         <li id="nav-velzon">Velzon X</li>
+        <li id="nav-velzon-instagram">Velzon Instagram</li>
       </ul>
     </div>
 
@@ -72,6 +73,14 @@
         <button id="btn-velzon-refresh" class="btn btn-secondary">↻ Yenile</button>
       </div>
       <div id="velzon-batches"></div>
+    </section>
+
+    <section id="velzon-instagram-view" class="pinterest-view hidden">
+      <div class="pinterest-toolbar">
+        <button id="btn-velzon-instagram-generate" class="btn btn-primary">+ Yeni parti üret</button>
+        <button id="btn-velzon-instagram-refresh" class="btn btn-secondary">↻ Yenile</button>
+      </div>
+      <div id="velzon-instagram-batches"></div>
     </section>
 
     <section id="job-detail" class="detail hidden">
@@ -201,6 +210,25 @@
     <label class="field">
       <span>Tweet sayısı</span>
       <input id="velzon-count" type="number" min="1" max="20" value="5">
+    </label>
+    <div class="actions">
+      <button value="ok" class="btn btn-primary">Üretimi başlat</button>
+      <button value="cancel" class="btn btn-ghost">Vazgeç</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-velzon-instagram-generate">
+  <form method="dialog">
+    <h3>Yeni Velzon Instagram partisi</h3>
+    <label class="field">
+      <span>Konu / tema açıklaması</span>
+      <textarea id="velzon-instagram-topic" rows="3"
+        placeholder="e-fatura avantajları, KOBİ muhasebe otomasyonu ipuçları"></textarea>
+    </label>
+    <label class="field">
+      <span>Gönderi sayısı</span>
+      <input id="velzon-instagram-count" type="number" min="1" max="20" value="5">
     </label>
     <div class="actions">
       <button value="ok" class="btn btn-primary">Üretimi başlat</button>
