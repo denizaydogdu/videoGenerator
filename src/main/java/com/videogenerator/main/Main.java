@@ -45,6 +45,7 @@ public class Main {
                 case "pinterest-auth" -> runPinterestAuth(config);
                 case "velzon-x-auth" -> runVelzonXAuth(config);
                 case "velzon-youtube-auth" -> runVelzonYouTubeAuth();
+                case "velzon-tiktok-auth" -> runVelzonTiktokAuth(config);
                 case "pinterest-batch" -> {
                     requireArg(args, "pinterest-batch requires: <count> <niche prompt...>");
                     if (args.length < 3) {
@@ -229,6 +230,30 @@ public class Main {
     }
 
     /**
+     * Config'e göre sandbox veya prod Velzon TikTok (@velzon_tr) istemcisi
+     * kurar — ana kanalın buildTikTokClient'ıyla aynı TikTokApiClient
+     * sınıfını, ayrı client key/secret ve ayrı token dosyasıyla kullanır
+     * (farklı bir marka/hesap, aynı Content Posting API akışı).
+     */
+    private static com.videogenerator.publish.TikTokApiClient buildVelzonTiktokClient(
+            Configuration config) {
+        boolean sandbox = config.getBoolean("velzon.tiktok.use.sandbox", true);
+        String key = sandbox ? config.get("velzon.tiktok.sandbox.client.key", "")
+                : config.get("velzon.tiktok.client.key", "");
+        String secret = sandbox ? config.get("velzon.tiktok.sandbox.client.secret", "")
+                : config.get("velzon.tiktok.client.secret", "");
+        if (key.isBlank()) {
+            return null;
+        }
+        return new com.videogenerator.publish.TikTokApiClient(
+                new com.videogenerator.publish.TikTokHttp(), key, secret,
+                config.get("velzon.tiktok.redirect.uri", ""),
+                java.nio.file.Path.of("config/tokens/velzon-tiktok-"
+                        + (sandbox ? "sandbox" : "prod") + ".json"),
+                5000);
+    }
+
+    /**
      * Tek seferlik TikTok yetkilendirmesi: adresi yazdırır, kullanıcı
      * tarayıcıda onaylar, callback sayfasındaki kodu terminale yapıştırır.
      */
@@ -283,6 +308,31 @@ public class Main {
             System.out.println("TikTok yetkilendirme TAMAM — token kaydedildi.");
         } catch (Exception e) {
             logger.error("tiktok-auth failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    /** Tek seferlik Velzon TikTok (@velzon_tr) yetkilendirmesi — tiktok-auth ile aynı akış. */
+    private static void runVelzonTiktokAuth(Configuration config) {
+        try {
+            var client = buildVelzonTiktokClient(config);
+            if (client == null) {
+                System.out.println("ERROR: velzon.tiktok.client.key not configured");
+                System.exit(1);
+                return;
+            }
+            String url = client.authorizationUrl("st" + System.currentTimeMillis());
+            System.out.println("========================================");
+            System.out.println("1) Bu adresi tarayıcıda aç ve @velzon_tr TikTok hesabıyla onayla:");
+            System.out.println(url);
+            System.out.println("2) Açılan sayfadaki kodu buraya yapıştır ve Enter'a bas:");
+            System.out.print("> ");
+            String code = new java.util.Scanner(System.in).nextLine().trim();
+            client.exchangeCode(code);
+            System.out.println("Velzon TikTok yetkilendirme TAMAM — token kaydedildi.");
+        } catch (Exception e) {
+            logger.error("velzon-tiktok-auth failed", e);
             System.out.println("ERROR: " + e.getMessage());
             System.exit(1);
         }
@@ -709,6 +759,22 @@ public class Main {
                         + " — section disabled");
             }
 
+            var velzonTiktokClient = buildVelzonTiktokClient(config);
+            if (velzonTiktokClient != null) {
+                com.videogenerator.velzon.VelzonTiktokPublishService.Poster velzonTiktokPoster =
+                        velzonTiktokClient::directPost;
+                var velzonTiktokService = new com.videogenerator.velzon.VelzonTiktokPublishService(
+                        velzonTiktokPoster,
+                        java.nio.file.Path.of(config.get("velzon.youtube.output.dir",
+                                "output/velzon-youtube")),
+                        config.get("velzon.tiktok.privacy.level", "SELF_ONLY"));
+                server.withVelzonTiktok(velzonTiktokService);
+                logger.info("Velzon TikTok backoffice section enabled");
+            } else {
+                logger.info("Velzon TikTok not configured (velzon.tiktok.client.key empty)"
+                        + " — section disabled");
+            }
+
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -824,6 +890,7 @@ public class Main {
         System.out.println("  pinterest-auth       - One-time Pinterest OAuth authorization");
         System.out.println("  velzon-x-auth        - One-time X (Twitter) OAuth authorization (PKCE)");
         System.out.println("  velzon-youtube-auth  - One-time Velzon YouTube channel OAuth (opens browser)");
+        System.out.println("  velzon-tiktok-auth   - One-time Velzon TikTok (@velzon_tr) OAuth authorization");
         System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (also available in backoffice)");
         System.out.println("  help                 - Show this help");
     }

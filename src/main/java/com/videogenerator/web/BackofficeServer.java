@@ -81,6 +81,10 @@ public class BackofficeServer {
     private com.videogenerator.velzon.VelzonYoutubePublishService velzonYoutubeService; // opsiyonel
     private VelzonYoutubeBatchLauncher velzonYoutubeGenerator; // opsiyonel
 
+    // "generate" yok — video zaten Velzon YouTube batch'i tarafından üretilmiş
+    // olmalı, bu bölüm onu ikinci bir hesaba (@velzon_tr) yeniden postlar.
+    private com.videogenerator.velzon.VelzonTiktokPublishService velzonTiktokService; // opsiyonel
+
     // Velzon'un gerçek bilgi merkezi makalelerini listeler; X/Instagram/YouTube
     // "Yeni parti üret" diyaloglarındaki serbest metin alanı yerine kullanılır.
     private com.videogenerator.velzon.VelzonKnowledgeBaseClient velzonKnowledgeBaseClient; // opsiyonel
@@ -123,6 +127,12 @@ public class BackofficeServer {
             VelzonYoutubeBatchLauncher velzonYoutubeGenerator) {
         this.velzonYoutubeService = velzonYoutubeService;
         this.velzonYoutubeGenerator = velzonYoutubeGenerator;
+        return this;
+    }
+
+    public BackofficeServer withVelzonTiktok(
+            com.videogenerator.velzon.VelzonTiktokPublishService velzonTiktokService) {
+        this.velzonTiktokService = velzonTiktokService;
         return this;
     }
 
@@ -191,6 +201,10 @@ public class BackofficeServer {
             }
             if (seg.length >= 3 && "velzon-youtube".equals(seg[2])) {
                 handleVelzonYoutubeApi(ex, method, seg);
+                return;
+            }
+            if (seg.length >= 3 && "velzon-tiktok".equals(seg[2])) {
+                handleVelzonTiktokApi(ex, method, seg);
                 return;
             }
             if (seg.length >= 3 && "velzon".equals(seg[2])) {
@@ -720,6 +734,52 @@ public class BackofficeServer {
             throw new IllegalArgumentException("Invalid script index");
         }
         var updated = unchecked(() -> velzonYoutubeService.publishVideo(batchId, index));
+        sendJson(ex, 200, gson.toJson(updated));
+    }
+
+    // ==================== Velzon TikTok ====================
+
+    /**
+     * "generate" rotası yok — VelzonTiktokPublishService kendi video
+     * üretmez, Velzon YouTube batch'inin zaten render ettiği video-XX.mp4'ü
+     * ikinci bir hesaba (@velzon_tr) postlar (bkz. sınıfın javadoc'u).
+     */
+    private void handleVelzonTiktokApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (velzonTiktokService == null) {
+            sendError(ex, 503, "Velzon TikTok not configured");
+            return;
+        }
+        switch (seg.length) {
+            case 4 -> {
+                if (!"batches".equals(seg[3])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requireGet(ex, method, () -> sendJson(ex, 200,
+                        gson.toJson(unchecked(velzonTiktokService::listBatches))));
+            }
+            case 8 -> {
+                if (!"batches".equals(seg[3]) || !"scripts".equals(seg[5])
+                        || !"publish".equals(seg[7])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requirePost(ex, method, () -> publishVelzonTiktokVideo(ex, seg[4], seg[6]));
+            }
+            default -> sendError(ex, 404, "Unknown resource");
+        }
+    }
+
+    private void publishVelzonTiktokVideo(HttpExchange ex, String batchId, String indexStr)
+            throws IOException {
+        int index;
+        try {
+            index = Integer.parseInt(indexStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid script index");
+        }
+        var updated = unchecked(() -> velzonTiktokService.publishToTiktok(batchId, index));
         sendJson(ex, 200, gson.toJson(updated));
     }
 

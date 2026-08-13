@@ -7,7 +7,7 @@ const state = {
   status: "",      // seçili durum filtresi ("" = tümü)
   job: null,       // açık iş (detay görünümü)
   lang: null,      // seçili dil sekmesi
-  view: "jobs",    // "jobs" | "pinterest" | "velzon" | "velzon-instagram" | "velzon-youtube"
+  view: "jobs",    // "jobs" | "pinterest" | "velzon" | "velzon-instagram" | "velzon-youtube" | "velzon-tiktok"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +23,8 @@ const VELZON_PLATFORMS = [
     show: () => { showVelzonInstagramView(); loadVelzonInstagramBatches(); } },
   { view: "velzon-youtube", label: "YouTube",
     show: () => { showVelzonYoutubeView(); loadVelzonYoutubeBatches(); } },
+  { view: "velzon-tiktok", label: "TikTok",
+    show: () => { showVelzonTiktokView(); loadVelzonTiktokBatches(); } },
 ];
 
 // ---------- API ----------
@@ -335,6 +337,7 @@ function hideAllViews() {
   $("velzon-view").classList.add("hidden");
   $("velzon-instagram-view").classList.add("hidden");
   $("velzon-youtube-view").classList.add("hidden");
+  $("velzon-tiktok-view").classList.add("hidden");
 }
 
 function showList() {
@@ -1070,6 +1073,106 @@ async function loadVelzonYoutubeBatches() {
   }
 }
 
+// ---------- Velzon TikTok ----------
+// "+ Yeni parti üret" YOK — bu sekme yeni içerik üretmez, Velzon YouTube
+// batch'inin zaten render ettiği videoyu ikinci bir hesaba (@velzon_tr)
+// postlar (bkz. VelzonTiktokPublishService javadoc'u).
+function showVelzonTiktokView() {
+  state.job = null;
+  state.view = "velzon-tiktok";
+  hideAllViews();
+  $("velzon-tiktok-view").classList.remove("hidden");
+  $("page-title").textContent = "Velzon TikTok";
+  $("player").pause?.();
+}
+
+async function loadVelzonTiktokBatches() {
+  const container = $("velzon-tiktok-batches");
+  try {
+    const batches = await api("/api/velzon-tiktok/batches");
+    container.innerHTML = "";
+    if (!batches.length) {
+      container.innerHTML = '<div class="empty">Henüz parti yok — önce Velzon YouTube\'da bir video yayınla.</div>';
+      return;
+    }
+    for (const batch of batches) {
+      const section = document.createElement("div");
+      section.className = "pinterest-batch";
+      const heading = document.createElement("div");
+      heading.className = "pinterest-batch-title";
+      const publishedCount = batch.scripts.filter((s) => s.tiktokPublished).length;
+      heading.textContent = `${batch.id} — ${publishedCount}/${batch.scripts.length} TikTok'ta yayında`;
+      section.appendChild(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "velzon-tweet-list";
+      batch.scripts.forEach((s, index) => {
+        const card = document.createElement("div");
+        card.className = "velzon-tweet-card";
+        const title = document.createElement("div");
+        title.className = "pinterest-pin-title";
+        title.textContent = s.title;
+        const meta = document.createElement("div");
+        meta.className = "velzon-tweet-meta";
+        meta.textContent = (s.hashtags || []).join(" ");
+        card.append(title, meta);
+
+        const doPublish = async () => {
+          await api(`/api/velzon-tiktok/batches/${batch.id}/scripts/${index}/publish`, {
+            method: "POST",
+          });
+          toast("TikTok'a gönderildi — @velzon_tr hesabının TikTok uygulamasındaki gelen kutusunda incele");
+          loadVelzonTiktokBatches();
+        };
+
+        if (s.tiktokPublished) {
+          const badge = document.createElement("span");
+          badge.className = "chip";
+          badge.textContent = "TikTok'ta yayında";
+          card.appendChild(badge);
+        } else if (!s.videoReady) {
+          const badge = document.createElement("span");
+          badge.className = "chip";
+          badge.textContent = "Önce Velzon YouTube'da yayınla";
+          card.appendChild(badge);
+        } else {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-primary btn-small";
+          btn.textContent = "TikTok'a yayınla";
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            btn.disabled = true;
+            btn.textContent = "Gönderiliyor…";
+            try {
+              await doPublish();
+            } catch (err) {
+              toast(err.message, true);
+              btn.disabled = false;
+              btn.textContent = "TikTok'a yayınla";
+            }
+          };
+          card.appendChild(btn);
+        }
+
+        if (s.videoReady && !s.tiktokPublished) {
+          card.onclick = () => openPostDetail({
+            title: s.title,
+            text: (s.hashtags || []).join(" "),
+            published: false,
+            onPublish: doPublish,
+            publishingLabel: "Gönderiliyor…",
+          });
+        }
+        grid.appendChild(card);
+      });
+      section.appendChild(grid);
+      container.appendChild(section);
+    }
+  } catch (e) {
+    renderLoadError(container, e);
+  }
+}
+
 function openVelzonYoutubeGenerateDialog() {
   const dlg = $("dlg-velzon-youtube-generate");
   dlg.returnValue = "";
@@ -1150,6 +1253,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("dlg-velzon-youtube-generate").addEventListener("close", () => {
     if ($("dlg-velzon-youtube-generate").returnValue === "ok") submitVelzonYoutubeGenerate();
   });
+  $("btn-velzon-tiktok-refresh").onclick = loadVelzonTiktokBatches;
   $("nav-settings").onclick = () => {
     // Seçili kanal (yoksa ilk kanal) için ayarları aç
     const ch = state.channel
@@ -1177,6 +1281,7 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (state.view === "velzon") loadVelzonBatches();
     else if (state.view === "velzon-instagram") loadVelzonInstagramBatches();
     else if (state.view === "velzon-youtube") loadVelzonYoutubeBatches();
+    else if (state.view === "velzon-tiktok") loadVelzonTiktokBatches();
     else refresh();
   }, 15000); // arka plan yenileme
 });

@@ -18,9 +18,9 @@ mevcut hesaplar: https://x.com/scyborsa, https://www.tiktok.com/@scyborsa,
 https://www.instagram.com/scyborsa/, web: scyborsa.com) — aynı desenle
 (AI metin+görsel, backoffice'ten tek tık yayın) ileride eklenecek.
 
-Sıra: Velzon IG → **Velzon YouTube (şimdi)** → Velzon TikTok → Velzon X
-(kod zaten hazır, sadece Developer Portal kurulumu bekleniyor) → sonra
-Scyborsa.
+Sıra: Velzon IG → Velzon YouTube → **Velzon TikTok (kod hazır, kullanıcı
+Developer Portal kurulumu bekliyor)** → Velzon X (kod zaten hazır, sadece
+Developer Portal kurulumu bekleniyor) → sonra Scyborsa.
 
 **Scyborsa veri entegrasyonu ERTELENDİ** (2026-08-12 araştırıldı,
 kullanıcı kararıyla) — otomatik DB/API entegrasyonu şu an kapalı yol:
@@ -127,6 +127,41 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       çıkarmadı) → YouTube upload. `published: true`,
       `url: youtube.com/shorts/knDUv2ajbZk`. oEmbed ile canlı
       doğrulandı: kanal **@Velzon-tr**, başlık/thumbnail doğru geliyor.
+
+### Velzon TikTok (@velzon_tr) — kod tamamlandı, kullanıcı kurulumu bekliyor
+- [x] **Kod tarafı tamamlandı ve canlıda tarayıcıyla test edildi** ✅
+      (2026-08-13, adım adım — kullanıcı isteğiyle küçük parçalara
+      bölündü) — **video üretmez**, Velzon YouTube batch'inin zaten
+      render ettiği `video-XX.mp4`'ü ikinci bir hesaba (@velzon_tr)
+      postlar. Tasarım kararı: fotoğraf/carousel modu yerine mevcut
+      video pipeline'ı yeniden kullanıldı (ElevenLabs artık çalışıyor,
+      TikTok'ta yeni bir PHOTO API yüzeyi yazmaktan daha az risk).
+      `VelzonTiktokPublishService` (yeni, kendi `tiktok.json` durum
+      dosyası — mevcut YouTube `manifest.json` şemasına HİÇ dokunmadı),
+      mevcut `TikTokApiClient.directPost()` (ana kanalla aynı sınıf,
+      ayrı client key/token dosyasıyla ikinci kez instantiate edildi),
+      backoffice route'ları (`/api/velzon-tiktok/*`, "generate" yok),
+      `velzon-tiktok-auth` CLI komutu, sidebar'da Velzon alt-menüsüne
+      4. sekme. 249/249 test yeşil. Puppeteer ile canlı tarayıcı testi:
+      batch listeleme, video-hazır-değil rozeti, detay modalı, ve sahte
+      anahtarla uçtan uca yayın denemesinin hatayı çökmeden toast olarak
+      gösterdiği doğrulandı. Adversarial review: 0 bulgu.
+- [ ] **Kullanıcı: developer.tiktok.com'da @velzon_tr için sandbox app
+      kur** — mevcut Unsolved Files uygulamasından TAMAMEN ayrı bir kayıt
+      (farklı hesap/marka). Content Posting API + video.publish scope,
+      callback: `https://videogenerator.velzon.tr/velzon-tiktok-callback.html`
+      (bu callback sayfası da GitHub Pages'e eklenmeli, mevcut
+      tiktok-callback.html'e benzer).
+- [ ] Client key/secret gelince config'e ekle (`velzon.tiktok.sandbox.client.key/secret`)
+      → `velzon-tiktok-auth` ile tek seferlik yetkilendirme (@velzon_tr
+      hesabıyla tarayıcıda onay)
+- [ ] İlk gerçek TikTok post denemesi (backoffice'ten, Velzon YouTube'da
+      zaten yayınlanmış bir videoyu seçip "TikTok'a yayınla") — post
+      TikTok API'sinden `publish_id` döner ama public URL dönmez, post
+      @velzon_tr hesabının TikTok uygulamasındaki gelen kutusuna düşer
+      (uygulama onaylanana kadar SELF_ONLY, elle incelenip yayınlanması
+      gerekebilir) — bu davranış TikTok'un kendi Direct Post akışının
+      normal parçası, bug değil.
 
 ### Velzon Instagram — kurulum tamamlandı, kod agent'ta
 - [x] Meta app "Velzon Social Publisher" oluşturuldu (App ID 1984849792233808,
