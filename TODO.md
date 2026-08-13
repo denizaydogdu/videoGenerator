@@ -146,22 +146,40 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       batch listeleme, video-hazır-değil rozeti, detay modalı, ve sahte
       anahtarla uçtan uca yayın denemesinin hatayı çökmeden toast olarak
       gösterdiği doğrulandı. Adversarial review: 0 bulgu.
-- [ ] **Kullanıcı: developer.tiktok.com'da @velzon_tr için sandbox app
-      kur** — mevcut Unsolved Files uygulamasından TAMAMEN ayrı bir kayıt
-      (farklı hesap/marka). Content Posting API + video.publish scope,
-      callback: `https://videogenerator.velzon.tr/velzon-tiktok-callback.html`
-      (bu callback sayfası da GitHub Pages'e eklenmeli, mevcut
-      tiktok-callback.html'e benzer).
-- [ ] Client key/secret gelince config'e ekle (`velzon.tiktok.sandbox.client.key/secret`)
-      → `velzon-tiktok-auth` ile tek seferlik yetkilendirme (@velzon_tr
-      hesabıyla tarayıcıda onay)
-- [ ] İlk gerçek TikTok post denemesi (backoffice'ten, Velzon YouTube'da
-      zaten yayınlanmış bir videoyu seçip "TikTok'a yayınla") — post
-      TikTok API'sinden `publish_id` döner ama public URL dönmez, post
-      @velzon_tr hesabının TikTok uygulamasındaki gelen kutusuna düşer
-      (uygulama onaylanana kadar SELF_ONLY, elle incelenip yayınlanması
-      gerekebilir) — bu davranış TikTok'un kendi Direct Post akışının
-      normal parçası, bug değil.
+- [x] **Kullanıcı: developer.tiktok.com'da @velzon_tr için app kuruldu** ✅
+      (2026-08-13) — "Velzon Social Publisher" (App type: Other), Login
+      Kit + Content Posting API (Direct Post açık), scope'lar
+      user.info.basic/video.publish/video.upload. Callback sayfası
+      (`velzon-tiktok-callback.html`) + Velzon'a özel Terms/Privacy
+      sayfaları (`velzon-terms.html`/`velzon-privacy.html`) GitHub
+      Pages'e eklendi. **Production sekmesi demo video + app review
+      istiyor (Unsolved Files'taki aynı akış)** — bunun yerine
+      **Sandbox sekmesi** kullanıldı: kendi ayrı client key/secret'ı
+      var, video/review şartı yok, Target Users'a @velzon_tr eklenerek
+      test edilebiliyor.
+- [x] **Client key/secret config'e eklendi, `velzon-tiktok-auth` ile
+      yetkilendirme tamamlandı** ✅ (2026-08-13) — sandbox client key
+      `sbawvrqfb7ggh8fdi1`, token `config/tokens/velzon-tiktok-sandbox.json`
+      (yerel + prod'a kopyalandı). Yerel terminalde FIFO ile arka planda
+      çalıştırılıp kod tarayıcıdan alınarak beslendi (interaktif
+      `Scanner` input'u arka plana almak için).
+- [x] **İlk gerçek TikTok post denemesi — canlı doğrulandı** ✅
+      (2026-08-13) — ilk denemede `HTTP 403
+      unaudited_client_can_only_post_to_private_accounts` hatası alındı
+      (TikTok'un platform kısıtlaması: onaylanmamış uygulamalar sadece
+      Private hesaplara postlayabilir, @velzon_tr o an Public'ti — bug
+      değil). Kullanıcı hesabı TikTok ayarlarından "Özel hesap" yaptı,
+      tekrar denendi: başarılı, `tiktokPublished: true`,
+      `publishId: v_pub_file~v2-1.7673598684571322369`. Post
+      @velzon_tr'nin TikTok uygulamasındaki gelen kutusuna düştü
+      (uygulama onaylanana kadar normal davranış, elle incelenip
+      yayınlanması gerekebilir).
+- [ ] **Teknik borç:** uygulama şu an Sandbox'ta — herkese açık/kalıcı
+      kullanım için ileride Production sekmesinde demo video çekilip
+      app review'a gönderilmeli (TikTok — App review bölümündeki
+      Unsolved Files sürecinin aynısı), onay sonrası prod client
+      key/secret'a geçilmeli ve @velzon_tr hesabı tekrar herkese açık
+      yapılabilir.
 
 ### Velzon Instagram — kurulum tamamlandı, kod agent'ta
 - [x] Meta app "Velzon Social Publisher" oluşturuldu (App ID 1984849792233808,
