@@ -104,9 +104,17 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       canlı doğrulandı (`serve` başlatılıp log'da "OAuth2 authorization
       successful" + "Velzon YouTube backoffice section enabled" görüldü,
       tarayıcı hiç açılmadı — mevcut token sessizce yüklendi). 221/221 yeşil.
-- [ ] Canlı ilk video denemesi (gerçek ffmpeg/ElevenLabs/görsel API +
-      gerçek YouTube upload ile uçtan uca doğrulama — boş .ass riski de
-      bu adımda netleşecek).
+- [x] **Canlı ilk video denemesi denendi, ElevenLabs'ta durdu** (2026-08-13)
+      — "Momentum Skoru" makalesinden parti üretildi (GPT script + gpt-image
+      görsel sorunsuz çalıştı), "Yayınla" tıklanınca TTS adımında
+      `402 payment_required: "Free users cannot use library voices via the
+      API"` hatası alındı. Bu bir kod bug'ı DEĞİL — [[no-license-nagging]]
+      kararının öngördüğü an: kaynak fiilen bitti. `tts.api.key` tüm
+      kanallar arasında paylaşılan tek anahtar, yani bu aynı zamanda ana
+      truecrime-en kanalının video üretimini de bloke ediyor. **Kullanıcı
+      kararı gerekiyor:** ElevenLabs Starter'a geçiş (~$5/ay) — kod
+      tarafında yapılacak bir şey yok. Boş `.ass` ffmpeg riski TTS
+      adımından sonra geldiği için hâlâ doğrulanmadı.
 
 ### Velzon Instagram — kurulum tamamlandı, kod agent'ta
 - [x] Meta app "Velzon Social Publisher" oluşturuldu (App ID 1984849792233808,
@@ -153,6 +161,10 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       publish endpoint'leriyle aynı senkron desende, kabul edilebilir),
       idempotent-publish sıralaması ve test kapsamı doğrulandı — 238/238
       yeşil, prod'a deploy edildi.
+- [x] **Düzeltme sonrası canlı doğrulama** ✅ (2026-08-13) — aynı RSI
+      postu tekrar "Yayınla" ile denendi, bu sefer başarılı: `published:
+      true`, `url: instagram.com/p/Db-KSgjjHoF/`, canlıda 200 dönüyor.
+      Container-ready polling gerçek koşulda doğrulandı.
 - [ ] **Gerçek piyasa verisi entegrasyonu (yeni, 2026-08-12 başladı)** —
       `VelzonMarketDataClient` yazıldı (gate.velzon.tr/api/chart/v2/{symbol},
       X-API-KEY ile — Velzon'un kendi Django frontend'inin de kullandığı
