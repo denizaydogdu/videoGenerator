@@ -676,7 +676,8 @@ public class Main {
                             new com.videogenerator.processor.FFmpegWrapper(),
                             new com.videogenerator.processor.KenBurnsRenderer(
                                     new com.videogenerator.processor.FFmpegWrapper()),
-                            new com.videogenerator.model.VoiceConfig());
+                            new com.videogenerator.model.VoiceConfig(
+                                    com.videogenerator.model.VoiceConfig.VOICE_GEORGE));
                     var velzonYoutubeService = new com.videogenerator.velzon.VelzonYoutubePublishService(
                             velzonYoutubeClient::uploadVideo, velzonYoutubeVideoBuilder,
                             java.nio.file.Path.of(config.get("velzon.youtube.output.dir",

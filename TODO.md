@@ -104,17 +104,29 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       canlı doğrulandı (`serve` başlatılıp log'da "OAuth2 authorization
       successful" + "Velzon YouTube backoffice section enabled" görüldü,
       tarayıcı hiç açılmadı — mevcut token sessizce yüklendi). 221/221 yeşil.
-- [x] **Canlı ilk video denemesi denendi, ElevenLabs'ta durdu** (2026-08-13)
-      — "Momentum Skoru" makalesinden parti üretildi (GPT script + gpt-image
-      görsel sorunsuz çalıştı), "Yayınla" tıklanınca TTS adımında
-      `402 payment_required: "Free users cannot use library voices via the
-      API"` hatası alındı. Bu bir kod bug'ı DEĞİL — [[no-license-nagging]]
-      kararının öngördüğü an: kaynak fiilen bitti. `tts.api.key` tüm
-      kanallar arasında paylaşılan tek anahtar, yani bu aynı zamanda ana
-      truecrime-en kanalının video üretimini de bloke ediyor. **Kullanıcı
-      kararı gerekiyor:** ElevenLabs Starter'a geçiş (~$5/ay) — kod
-      tarafında yapılacak bir şey yok. Boş `.ass` ffmpeg riski TTS
-      adımından sonra geldiği için hâlâ doğrulanmadı.
+- [x] **Canlı ilk video denemesi denendi, ElevenLabs'ta durdu, sonra
+      düzeltildi** ✅ (2026-08-13) — "Momentum Skoru" makalesinden parti
+      üretildi (GPT script + gpt-image görsel sorunsuz çalıştı),
+      "Yayınla" tıklanınca TTS adımında `402 payment_required: "Free
+      users cannot use library voices via the API"` hatası alındı.
+      **Kök neden kod bug'ı değildi, yanlış ses ID'siydi:** Velzon
+      YouTube varsayılan `new VoiceConfig()` kullanıyordu, bu da
+      `VOICE_RACHEL` (21m00...) demek — bu ses hesaba hiç "eklenmemiş"
+      bir kütüphane sesi, free planda API'den kullanılamıyor. Ana
+      truecrime-en kanalının kendi `channels/truecrime-en.json`'da
+      `voiceId: JBFqnCBsd6RMkjVDRZzb` (George) tanımlı ve bu ses zaten
+      hesaba ekli, API'den çalışıyor — canlı curl testiyle doğrulandı.
+      Düzeltme: `VoiceConfig.VOICE_GEORGE` sabiti eklendi, Velzon
+      YouTube wiring'i (`Main.java`) George'u kullanacak şekilde
+      değiştirildi (kullanıcının kendi ElevenLabs hesap/plan tercihine
+      dokunulmadı, sadece doğru sesi seçtik). 238/238 yeşil, prod'a
+      deploy edildi.
+- [x] **Canlı doğrulama tamamlandı** ✅ (2026-08-13) — aynı script
+      tekrar "Yayınla" ile denendi, uçtan uca başarılı: TTS (George) →
+      ffmpeg render (boş `.ass` riski de burada netleşti, sorun
+      çıkarmadı) → YouTube upload. `published: true`,
+      `url: youtube.com/shorts/knDUv2ajbZk`. oEmbed ile canlı
+      doğrulandı: kanal **@Velzon-tr**, başlık/thumbnail doğru geliyor.
 
 ### Velzon Instagram — kurulum tamamlandı, kod agent'ta
 - [x] Meta app "Velzon Social Publisher" oluşturuldu (App ID 1984849792233808,

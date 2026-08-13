@@ -19,6 +19,7 @@ public class VoiceConfig {
     public static final String VOICE_ANTONI = "ErXwobaYiN019PkySvjV";  // Male, Well-rounded
     public static final String VOICE_BELLA = "EXAVITQu4vr4xnSDxMaL";   // Female, Soft
     public static final String VOICE_DOMI = "AZnzlk1XvdvUeBnXmlld";    // Female, Strong
+    public static final String VOICE_GEORGE = "JBFqnCBsd6RMkjVDRZzb";  // Male, British
 
     public VoiceConfig() {
         // Default settings for natural-sounding voice
