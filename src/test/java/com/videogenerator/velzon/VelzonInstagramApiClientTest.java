@@ -156,4 +156,92 @@ class VelzonInstagramApiClientTest {
 
         assertThrows(IllegalStateException.class, () -> c.getPermalink("MEDIA1"));
     }
+
+    // ---------- waitUntilContainerReady: Instagram "container not ready yet" polling ----------
+
+    /** URL'e göre farklı sıralı yanıtlar döner — container status polling'i test etmek için. */
+    static class QueueHttp implements VelzonInstagramApiClient.Http {
+        final List<String> calls = new ArrayList<>();
+        final java.util.Queue<String> getQueue = new java.util.ArrayDeque<>();
+
+        @Override
+        public String postForm(String url, Map<String, String> form) {
+            calls.add("FORM " + url);
+            return "{\"id\":\"X\"}";
+        }
+
+        @Override
+        public String get(String url) {
+            calls.add("GET " + url);
+            String next = getQueue.poll();
+            if (next == null) {
+                throw new AssertionError("unexpected extra GET: " + url);
+            }
+            return next;
+        }
+    }
+
+    private static final VelzonInstagramApiClient.Sleeper NO_OP_SLEEPER = ms -> { };
+
+    @Test
+    void waitUntilContainerReadyReturnsImmediatelyWhenAlreadyFinished() throws Exception {
+        QueueHttp http = new QueueHttp();
+        http.getQueue.add("{\"status_code\":\"FINISHED\"}");
+        VelzonInstagramApiClient c = new VelzonInstagramApiClient(
+                http, "IGUSER1", "TOKEN1", NO_OP_SLEEPER);
+
+        c.waitUntilContainerReady("CONTAINER1");
+
+        assertEquals(1, http.calls.size());
+    }
+
+    @Test
+    void waitUntilContainerReadyPollsUntilFinished() throws Exception {
+        QueueHttp http = new QueueHttp();
+        http.getQueue.add("{\"status_code\":\"IN_PROGRESS\"}");
+        http.getQueue.add("{\"status_code\":\"IN_PROGRESS\"}");
+        http.getQueue.add("{\"status_code\":\"FINISHED\"}");
+        VelzonInstagramApiClient c = new VelzonInstagramApiClient(
+                http, "IGUSER1", "TOKEN1", NO_OP_SLEEPER);
+
+        c.waitUntilContainerReady("CONTAINER1");
+
+        assertEquals(3, http.calls.size());
+    }
+
+    @Test
+    void waitUntilContainerReadyThrowsOnError() {
+        QueueHttp http = new QueueHttp();
+        http.getQueue.add("{\"status_code\":\"ERROR\"}");
+        VelzonInstagramApiClient c = new VelzonInstagramApiClient(
+                http, "IGUSER1", "TOKEN1", NO_OP_SLEEPER);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> c.waitUntilContainerReady("CONTAINER1"));
+        assertTrue(ex.getMessage().contains("ERROR"));
+    }
+
+    @Test
+    void waitUntilContainerReadyThrowsOnExpired() {
+        QueueHttp http = new QueueHttp();
+        http.getQueue.add("{\"status_code\":\"EXPIRED\"}");
+        VelzonInstagramApiClient c = new VelzonInstagramApiClient(
+                http, "IGUSER1", "TOKEN1", NO_OP_SLEEPER);
+
+        assertThrows(IllegalStateException.class,
+                () -> c.waitUntilContainerReady("CONTAINER1"));
+    }
+
+    @Test
+    void waitUntilContainerReadyThrowsAfterMaxAttemptsStillInProgress() {
+        QueueHttp http = new QueueHttp();
+        for (int i = 0; i < 20; i++) {
+            http.getQueue.add("{\"status_code\":\"IN_PROGRESS\"}");
+        }
+        VelzonInstagramApiClient c = new VelzonInstagramApiClient(
+                http, "IGUSER1", "TOKEN1", NO_OP_SLEEPER);
+
+        assertThrows(IllegalStateException.class,
+                () -> c.waitUntilContainerReady("CONTAINER1"));
+    }
 }

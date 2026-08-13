@@ -861,6 +861,11 @@ public class BackofficeServer {
                 }
                 byte[] bytes = in.readAllBytes();
                 ex.getResponseHeaders().set("Content-Type", contentType);
+                // Statik dosyalar jar içinde gömülü, deploy'da her zaman değişebilir —
+                // tarayıcı VE Cloudflare edge cache'i asla eskisini tutmasın diye
+                // no-store. Bu tek-operatörlü internal tool için performans kaybı
+                // önemsiz, cache-yüzünden-eski-UI hatası çok daha maliyetli.
+                ex.getResponseHeaders().set("Cache-Control", "no-store, must-revalidate");
                 ex.sendResponseHeaders(200, bytes.length);
                 try (OutputStream os = ex.getResponseBody()) {
                     os.write(bytes);

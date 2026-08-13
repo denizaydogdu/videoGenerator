@@ -26,6 +26,11 @@ class VelzonInstagramPublishServiceTest {
         }
 
         @Override
+        public void waitUntilContainerReady(String creationId) {
+            // testte gerçek polling'e gerek yok — container her zaman hazır kabul edilir
+        }
+
+        @Override
         public String createMediaContainer(String imageUrl, String caption) {
             containerCalls++;
             lastImageUrl = imageUrl;

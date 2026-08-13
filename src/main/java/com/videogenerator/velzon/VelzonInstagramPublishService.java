@@ -84,6 +84,10 @@ public class VelzonInstagramPublishService {
         String imageUrl = publicBaseUrl + "/api/velzon-instagram/batches/" + batchId
                 + "/images/" + entry.file();
         String creationId = client.createMediaContainer(imageUrl, entry.caption());
+        // Instagram container'ı hemen yayına hazır olmayabilir (canlı bulgu
+        // 2026-08-12: "Media ID is not available" hatası) — publish'ten önce
+        // status_code=FINISHED olana kadar bekle.
+        client.waitUntilContainerReady(creationId);
         String mediaId = client.publishContainer(creationId);
 
         // Post gerçek hesapta artık CANLI — geri alınamaz. Permalink çekme veya

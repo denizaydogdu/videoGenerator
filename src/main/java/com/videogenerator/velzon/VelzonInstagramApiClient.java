@@ -30,20 +30,38 @@ public class VelzonInstagramApiClient {
     private static final Logger logger = LoggerFactory.getLogger(VelzonInstagramApiClient.class);
     private static final String GRAPH = "https://graph.instagram.com/v23.0";
 
+    // Canlı bulgu (2026-08-12): container oluşturulduktan hemen sonra publish
+    // denenirse Instagram "Media ID is not available" (subcode 2207027) hatası
+    // veriyor — container'ın kendi tarafında işlenmesi birkaç saniye sürebiliyor.
+    // Meta'nın resmi çözümü: status_code=FINISHED olana kadar polling.
+    private static final int MAX_POLL_ATTEMPTS = 10;
+    private static final long POLL_INTERVAL_MS = 2000;
+
     /** Test edilebilirlik dikişi — gerçek impl JDK HttpClient kullanır (VelzonInstagramHttp). */
     public interface Http {
         String postForm(String url, Map<String, String> form) throws Exception;
         String get(String url) throws Exception;
     }
 
+    /** waitUntilContainerReady()'nin polling aralarındaki bekleme adımı — testte no-op enjekte edilir. */
+    public interface Sleeper {
+        void sleep(long millis) throws InterruptedException;
+    }
+
     private final Http http;
     private final String igUserId;
     private final String accessToken;
+    private final Sleeper sleeper;
 
     public VelzonInstagramApiClient(Http http, String igUserId, String accessToken) {
+        this(http, igUserId, accessToken, Thread::sleep);
+    }
+
+    public VelzonInstagramApiClient(Http http, String igUserId, String accessToken, Sleeper sleeper) {
         this.http = http;
         this.igUserId = igUserId;
         this.accessToken = accessToken;
+        this.sleeper = sleeper;
     }
 
     /** Adım 1: medya container oluşturur, creation id döner. */
@@ -56,6 +74,39 @@ public class VelzonInstagramApiClient {
         String id = require(resp, "id", "IG media container");
         logger.info("IG media container created: {}", id);
         return id;
+    }
+
+    /**
+     * Adım 1.5 (opsiyonel ama önerilir): container'ın Instagram tarafında
+     * işlenmesini bekler. status_code FINISHED olunca döner; ERROR/EXPIRED
+     * gelirse ya da MAX_POLL_ATTEMPTS aşılırsa fırlatır.
+     */
+    public void waitUntilContainerReady(String creationId) throws Exception {
+        for (int attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+            String status = getContainerStatus(creationId);
+            if ("FINISHED".equals(status)) {
+                return;
+            }
+            if ("ERROR".equals(status) || "EXPIRED".equals(status)) {
+                throw new IllegalStateException(
+                        "Instagram media container " + creationId + " status is " + status
+                                + " — cannot publish");
+            }
+            if (attempt == MAX_POLL_ATTEMPTS) {
+                throw new IllegalStateException(
+                        "Instagram media container " + creationId + " still not ready after "
+                                + MAX_POLL_ATTEMPTS + " attempts (last status: " + status + ")");
+            }
+            logger.info("IG container {} not ready yet ({}), retrying in {}ms",
+                    creationId, status, POLL_INTERVAL_MS);
+            sleeper.sleep(POLL_INTERVAL_MS);
+        }
+    }
+
+    private String getContainerStatus(String creationId) throws Exception {
+        JsonObject resp = json(http.get(GRAPH + "/" + creationId
+                + "?fields=status_code&access_token=" + accessToken));
+        return require(resp, "status_code", "IG container status");
     }
 
     /** Adım 2: container'ı yayınlar, yayınlanmış medya id'sini döner. */

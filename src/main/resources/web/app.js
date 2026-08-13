@@ -2,7 +2,8 @@
 "use strict";
 
 const state = {
-  channel: null,   // seçili kanal (null = tümü)
+  channel: null,   // seçili video kanalı (null = tümü)
+  brand: null,     // "velzon" = Velzon alt-menüsü açık, null = kapalı
   status: "",      // seçili durum filtresi ("" = tümü)
   job: null,       // açık iş (detay görünümü)
   lang: null,      // seçili dil sekmesi
@@ -10,6 +11,19 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+
+// Velzon'un platformları — "Velzon" seçilince DOM'da hemen altına (aynı
+// channel-list içine, Velzon'un hemen ardına) bu liste render edilir.
+// Hiçbir platforma OTOMATİK geçilmez — X henüz Developer Portal kurulumu
+// bekliyor, otomatik ona geçmek sürpriz "not configured" hatası veriyordu.
+const VELZON_PLATFORMS = [
+  { view: "velzon", label: "X (Twitter)",
+    show: () => { showVelzonView(); loadVelzonBatches(); } },
+  { view: "velzon-instagram", label: "Instagram",
+    show: () => { showVelzonInstagramView(); loadVelzonInstagramBatches(); } },
+  { view: "velzon-youtube", label: "YouTube",
+    show: () => { showVelzonYoutubeView(); loadVelzonYoutubeBatches(); } },
+];
 
 // ---------- API ----------
 async function api(path, options = {}) {
@@ -34,19 +48,26 @@ function toast(message, isError = false) {
 }
 
 // ---------- Sidebar ----------
-async function loadChannels() {
-  const channels = await api("/api/channels");
-  state.channels = channels;
+/**
+ * channel-list'i state.channels (önceden çekilmiş veri) + state'e göre
+ * yeniden çizer — network isteği YAPMAZ. Velzon'un alt-menüsü (X/Instagram/
+ * YouTube) Velzon li'sinin HEMEN ARDINA, aynı liste içine eklenir — ayrı
+ * bir <ul> olarak DOM'un sonunda durmaz, doğru sırada görünür.
+ */
+function renderChannelList() {
+  const channels = state.channels || [];
   const list = $("channel-list");
   list.innerHTML = "";
+
   const all = document.createElement("li");
   all.textContent = "Tüm kanallar";
-  all.className = state.channel === null ? "active" : "";
-  all.onclick = () => { state.channel = null; showList(); refresh(); };
+  all.className = (state.channel === null && !state.brand && state.view === "jobs") ? "active" : "";
+  all.onclick = () => { state.channel = null; state.brand = null; showList(); refresh(); };
   list.appendChild(all);
+
   for (const ch of channels) {
     const li = document.createElement("li");
-    li.className = state.channel === ch.channelId ? "active" : "";
+    li.className = (state.channel === ch.channelId && !state.brand) ? "active" : "";
     const name = document.createElement("span");
     name.textContent = ch.displayName;
     li.appendChild(name);
@@ -56,10 +77,55 @@ async function loadChannels() {
       badge.textContent = ch.pendingCount;
       li.appendChild(badge);
     }
-    li.onclick = () => { state.channel = ch.channelId; showList(); refresh(); };
+    li.onclick = () => { state.channel = ch.channelId; state.brand = null; showList(); refresh(); };
     list.appendChild(li);
   }
-  // Üretim dialogundaki kanal seçimi
+
+  // Velzon: marka girişi — tıklanınca (toggle) hemen altına X/Instagram/
+  // YouTube açılır. Hiçbir platforma otomatik geçilmez, kullanıcı seçer.
+  const velzonLi = document.createElement("li");
+  velzonLi.textContent = "Velzon";
+  velzonLi.className = state.brand === "velzon" ? "active" : "";
+  velzonLi.onclick = () => {
+    state.channel = null;
+    if (state.brand === "velzon") {
+      state.brand = null;
+      showList();
+      refresh();
+      return;
+    }
+    state.brand = "velzon";
+    showVelzonBrandView();
+    renderChannelList();
+  };
+  list.appendChild(velzonLi);
+
+  if (state.brand === "velzon") {
+    for (const p of VELZON_PLATFORMS) {
+      const li = document.createElement("li");
+      li.textContent = p.label;
+      li.className = "sub-item" + (state.view === p.view ? " active" : "");
+      li.onclick = () => { p.show(); renderChannelList(); };
+      list.appendChild(li);
+    }
+  }
+
+  // Small Space Living: kişisel Pinterest hesabı (@denizaydogdu) —
+  // Unsolved Files/Velzon'dan bağımsız yan proje. "Pinterest" jenerik
+  // platform adı yerine gerçek marka adı kullanılır.
+  const sslLi = document.createElement("li");
+  sslLi.textContent = "Small Space Living";
+  sslLi.className = (state.view === "pinterest" && !state.brand) ? "active" : "";
+  sslLi.onclick = () => {
+    state.channel = null;
+    state.brand = null;
+    showPinterestView();
+    loadPinterestBatches();
+    renderChannelList();
+  };
+  list.appendChild(sslLi);
+
+  // Üretim dialogundaki kanal seçimi (yalnız gerçek video kanalları)
   const sel = $("gen-channel");
   sel.innerHTML = "";
   for (const ch of channels) {
@@ -68,6 +134,11 @@ async function loadChannels() {
     opt.textContent = ch.displayName;
     sel.appendChild(opt);
   }
+}
+
+async function loadChannels() {
+  state.channels = await api("/api/channels");
+  renderChannelList();
 }
 
 async function loadStats() {
@@ -253,18 +324,40 @@ async function openDetail(jobId) {
   loadJobStats().catch(() => {}); // detay açılınca izlenmeler otomatik gelsin
 }
 
+/** Tüm ana içerik görünümlerini gizler — her show*View() bunu çağırıp
+ * kendi görünümünü açar, böylece yeni bir görünüm eklenince tek yerden
+ * yönetilir ve eski bir görünümün "unutulup" ekranda kalması imkansızlaşır. */
+function hideAllViews() {
+  $("job-grid").classList.add("hidden");
+  $("job-detail").classList.add("hidden");
+  $("pinterest-view").classList.add("hidden");
+  $("velzon-brand-view").classList.add("hidden");
+  $("velzon-view").classList.add("hidden");
+  $("velzon-instagram-view").classList.add("hidden");
+  $("velzon-youtube-view").classList.add("hidden");
+}
+
 function showList() {
   // Detay panelini kapat (yenileme YAPMADAN) — kenar menü gezinmeleri
   // kendi refresh'ini çağırır, çift istek olmasın
   state.job = null;
   state.view = "jobs";
-  $("job-detail").classList.add("hidden");
-  $("pinterest-view").classList.add("hidden");
-  $("velzon-view").classList.add("hidden");
-  $("velzon-instagram-view").classList.add("hidden");
-  $("velzon-youtube-view").classList.add("hidden");
+  // Vurgu: renderChannelList() (refresh() üzerinden) state.view'a göre kendi hesaplar
+  hideAllViews();
   $("job-grid").classList.remove("hidden");
   $("page-title").textContent = "İşler";
+  $("player").pause?.();
+}
+
+/** "Velzon" marka girişine tıklanınca (alt-menü açılırken) gösterilir —
+ * hiçbir platforma otomatik geçilmez, kullanıcı X/Instagram/YouTube'dan
+ * birini seçmeden önce boş bir yönlendirme ekranı görür. */
+function showVelzonBrandView() {
+  state.job = null;
+  state.view = "velzon-brand";
+  hideAllViews();
+  $("velzon-brand-view").classList.remove("hidden");
+  $("page-title").textContent = "Velzon";
   $("player").pause?.();
 }
 
@@ -374,6 +467,69 @@ async function reject() {
   }
 }
 
+/** Backend'in "not configured" (503, henüz kurulum bekleniyor — ör. X
+ * Developer Portal) yanıtını sakin bir bilgi kutusuyla gösterir; gerçek
+ * hatalarda (network, sunucu hatası) mevcut kırmızı toast'a düşer. */
+function renderLoadError(container, e) {
+  if (/not configured/i.test(e.message)) {
+    container.innerHTML = '<div class="empty">Bu platform henüz yapılandırılmadı — kurulum tamamlanınca burada görünecek.</div>';
+  } else {
+    container.innerHTML = "";
+    toast(e.message, true);
+  }
+}
+
+// ---------- Ortak post/pin/tweet detay penceresi ----------
+// Pinterest/Velzon X/Instagram/YouTube kartlarının hepsi bu tek modalı
+// kullanır — büyük görsel + tam (kesilmemiş) metin + yayınla/link.
+function openPostDetail({ imageUrl, title, text, meta, published, url, onPublish, publishingLabel }) {
+  const dlg = $("dlg-post-detail");
+  const img = $("post-detail-image");
+  if (imageUrl) {
+    img.src = imageUrl;
+    img.classList.remove("hidden");
+  } else {
+    img.classList.add("hidden");
+  }
+  const titleEl = $("post-detail-title");
+  titleEl.textContent = title || "";
+  titleEl.style.display = title ? "" : "none";
+  $("post-detail-text").textContent = text || "";
+  const metaEl = $("post-detail-meta");
+  metaEl.textContent = meta || "";
+  metaEl.style.display = meta ? "" : "none";
+
+  const linkEl = $("post-detail-link");
+  const publishBtn = $("post-detail-publish");
+  if (published) {
+    publishBtn.classList.add("hidden");
+    if (url) {
+      linkEl.href = url;
+      linkEl.classList.remove("hidden");
+    } else {
+      linkEl.classList.add("hidden");
+    }
+  } else {
+    linkEl.classList.add("hidden");
+    publishBtn.classList.remove("hidden");
+    publishBtn.disabled = false;
+    publishBtn.textContent = "Yayınla";
+    publishBtn.onclick = async () => {
+      publishBtn.disabled = true;
+      publishBtn.textContent = publishingLabel || "Yayınlanıyor…";
+      try {
+        await onPublish();
+        dlg.close();
+      } catch (e) {
+        toast(e.message, true);
+        publishBtn.disabled = false;
+        publishBtn.textContent = "Yayınla";
+      }
+    };
+  }
+  dlg.showModal();
+}
+
 // ---------- Generate ----------
 function openGenerateDialog() {
   const dlg = $("dlg-generate");
@@ -400,13 +556,9 @@ async function submitGenerate() {
 function showPinterestView() {
   state.job = null;
   state.view = "pinterest";
-  $("job-grid").classList.add("hidden");
-  $("job-detail").classList.add("hidden");
-  $("velzon-view").classList.add("hidden");
-  $("velzon-instagram-view").classList.add("hidden");
-  $("velzon-youtube-view").classList.add("hidden");
+  hideAllViews();
   $("pinterest-view").classList.remove("hidden");
-  $("page-title").textContent = "Pinterest";
+  $("page-title").textContent = "Small Space Living";
   $("player").pause?.();
 }
 
@@ -444,12 +596,21 @@ async function loadPinterestBatches() {
         desc.textContent = pin.description;
         card.append(img, title, desc);
 
+        const doPublish = async () => {
+          await api(`/api/pinterest/batches/${batch.id}/pins/${index}/publish`, {
+            method: "POST",
+          });
+          toast("Pin yayınlandı");
+          loadPinterestBatches();
+        };
+
         if (pin.published && pin.url) {
           const link = document.createElement("a");
           link.className = "btn btn-secondary btn-small";
           link.textContent = "Pinterest'te gör ↗";
           link.href = pin.url;
           link.target = "_blank";
+          link.onclick = (e) => e.stopPropagation();
           card.appendChild(link);
         } else if (pin.published) {
           const badge = document.createElement("span");
@@ -460,31 +621,36 @@ async function loadPinterestBatches() {
           const btn = document.createElement("button");
           btn.className = "btn btn-primary btn-small";
           btn.textContent = "Yayınla";
-          btn.onclick = async () => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
             btn.disabled = true;
             btn.textContent = "Yayınlanıyor…";
             try {
-              await api(`/api/pinterest/batches/${batch.id}/pins/${index}/publish`, {
-                method: "POST",
-              });
-              toast("Pin yayınlandı");
-              loadPinterestBatches();
-            } catch (e) {
-              toast(e.message, true);
+              await doPublish();
+            } catch (err) {
+              toast(err.message, true);
               btn.disabled = false;
               btn.textContent = "Yayınla";
             }
           };
           card.appendChild(btn);
         }
+
+        card.onclick = () => openPostDetail({
+          imageUrl: img.src,
+          title: pin.title,
+          text: pin.description,
+          published: pin.published,
+          url: pin.url,
+          onPublish: doPublish,
+        });
         grid.appendChild(card);
       });
       section.appendChild(grid);
       container.appendChild(section);
     }
   } catch (e) {
-    container.innerHTML = "";
-    toast(e.message, true);
+    renderLoadError(container, e);
   }
 }
 
@@ -549,11 +715,7 @@ function resolveVelzonArticlePath(typedTitle) {
 function showVelzonView() {
   state.job = null;
   state.view = "velzon";
-  $("job-grid").classList.add("hidden");
-  $("job-detail").classList.add("hidden");
-  $("pinterest-view").classList.add("hidden");
-  $("velzon-instagram-view").classList.add("hidden");
-  $("velzon-youtube-view").classList.add("hidden");
+  hideAllViews();
   $("velzon-view").classList.remove("hidden");
   $("page-title").textContent = "Velzon X";
   $("player").pause?.();
@@ -590,12 +752,21 @@ async function loadVelzonBatches() {
         meta.textContent = `${tw.topic} · ${tw.text.length}/280`;
         card.append(text, meta);
 
+        const doPublish = async () => {
+          await api(`/api/velzon/batches/${batch.id}/tweets/${index}/publish`, {
+            method: "POST",
+          });
+          toast("Tweet yayınlandı");
+          loadVelzonBatches();
+        };
+
         if (tw.published && tw.url) {
           const link = document.createElement("a");
           link.className = "btn btn-secondary btn-small";
           link.textContent = "X'te gör ↗";
           link.href = tw.url;
           link.target = "_blank";
+          link.onclick = (e) => e.stopPropagation();
           card.appendChild(link);
         } else if (tw.published) {
           const badge = document.createElement("span");
@@ -606,31 +777,35 @@ async function loadVelzonBatches() {
           const btn = document.createElement("button");
           btn.className = "btn btn-primary btn-small";
           btn.textContent = "Yayınla";
-          btn.onclick = async () => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
             btn.disabled = true;
             btn.textContent = "Yayınlanıyor…";
             try {
-              await api(`/api/velzon/batches/${batch.id}/tweets/${index}/publish`, {
-                method: "POST",
-              });
-              toast("Tweet yayınlandı");
-              loadVelzonBatches();
-            } catch (e) {
-              toast(e.message, true);
+              await doPublish();
+            } catch (err) {
+              toast(err.message, true);
               btn.disabled = false;
               btn.textContent = "Yayınla";
             }
           };
           card.appendChild(btn);
         }
+
+        card.onclick = () => openPostDetail({
+          text: tw.text,
+          meta: `${tw.topic} · ${tw.text.length}/280`,
+          published: tw.published,
+          url: tw.url,
+          onPublish: doPublish,
+        });
         grid.appendChild(card);
       });
       section.appendChild(grid);
       container.appendChild(section);
     }
   } catch (e) {
-    container.innerHTML = "";
-    toast(e.message, true);
+    renderLoadError(container, e);
   }
 }
 
@@ -667,11 +842,7 @@ async function submitVelzonGenerate() {
 function showVelzonInstagramView() {
   state.job = null;
   state.view = "velzon-instagram";
-  $("job-grid").classList.add("hidden");
-  $("job-detail").classList.add("hidden");
-  $("pinterest-view").classList.add("hidden");
-  $("velzon-view").classList.add("hidden");
-  $("velzon-youtube-view").classList.add("hidden");
+  hideAllViews();
   $("velzon-instagram-view").classList.remove("hidden");
   $("page-title").textContent = "Velzon Instagram";
   $("player").pause?.();
@@ -708,12 +879,21 @@ async function loadVelzonInstagramBatches() {
         desc.textContent = post.caption;
         card.append(img, desc);
 
+        const doPublish = async () => {
+          await api(`/api/velzon-instagram/batches/${batch.id}/posts/${index}/publish`, {
+            method: "POST",
+          });
+          toast("Gönderi yayınlandı");
+          loadVelzonInstagramBatches();
+        };
+
         if (post.published && post.url) {
           const link = document.createElement("a");
           link.className = "btn btn-secondary btn-small";
           link.textContent = "Instagram'da gör ↗";
           link.href = post.url;
           link.target = "_blank";
+          link.onclick = (e) => e.stopPropagation();
           card.appendChild(link);
         } else if (post.published) {
           const badge = document.createElement("span");
@@ -724,31 +904,35 @@ async function loadVelzonInstagramBatches() {
           const btn = document.createElement("button");
           btn.className = "btn btn-primary btn-small";
           btn.textContent = "Yayınla";
-          btn.onclick = async () => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
             btn.disabled = true;
             btn.textContent = "Yayınlanıyor…";
             try {
-              await api(`/api/velzon-instagram/batches/${batch.id}/posts/${index}/publish`, {
-                method: "POST",
-              });
-              toast("Gönderi yayınlandı");
-              loadVelzonInstagramBatches();
-            } catch (e) {
-              toast(e.message, true);
+              await doPublish();
+            } catch (err) {
+              toast(err.message, true);
               btn.disabled = false;
               btn.textContent = "Yayınla";
             }
           };
           card.appendChild(btn);
         }
+
+        card.onclick = () => openPostDetail({
+          imageUrl: img.src,
+          text: post.caption,
+          published: post.published,
+          url: post.url,
+          onPublish: doPublish,
+        });
         grid.appendChild(card);
       });
       section.appendChild(grid);
       container.appendChild(section);
     }
   } catch (e) {
-    container.innerHTML = "";
-    toast(e.message, true);
+    renderLoadError(container, e);
   }
 }
 
@@ -785,11 +969,7 @@ async function submitVelzonInstagramGenerate() {
 function showVelzonYoutubeView() {
   state.job = null;
   state.view = "velzon-youtube";
-  $("job-grid").classList.add("hidden");
-  $("job-detail").classList.add("hidden");
-  $("pinterest-view").classList.add("hidden");
-  $("velzon-view").classList.add("hidden");
-  $("velzon-instagram-view").classList.add("hidden");
+  hideAllViews();
   $("velzon-youtube-view").classList.remove("hidden");
   $("page-title").textContent = "Velzon YouTube";
   $("player").pause?.();
@@ -829,12 +1009,21 @@ async function loadVelzonYoutubeBatches() {
         meta.textContent = (s.hashtags || []).join(" ");
         card.append(title, narration, meta);
 
+        const doPublish = async () => {
+          await api(`/api/velzon-youtube/batches/${batch.id}/scripts/${index}/publish`, {
+            method: "POST",
+          });
+          toast("Video yayınlandı");
+          loadVelzonYoutubeBatches();
+        };
+
         if (s.published && s.url) {
           const link = document.createElement("a");
           link.className = "btn btn-secondary btn-small";
           link.textContent = "YouTube'da gör ↗";
           link.href = s.url;
           link.target = "_blank";
+          link.onclick = (e) => e.stopPropagation();
           card.appendChild(link);
         } else if (s.published) {
           const badge = document.createElement("span");
@@ -845,33 +1034,39 @@ async function loadVelzonYoutubeBatches() {
           const btn = document.createElement("button");
           btn.className = "btn btn-primary btn-small";
           btn.textContent = "Yayınla";
-          btn.onclick = async () => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
             btn.disabled = true;
             // Görsel + seslendirme + render + upload burada gerçekleşir —
             // Pinterest/Instagram'ın anlık yayınından çok daha uzun sürebilir
             btn.textContent = "Video oluşturuluyor ve yükleniyor…";
             try {
-              await api(`/api/velzon-youtube/batches/${batch.id}/scripts/${index}/publish`, {
-                method: "POST",
-              });
-              toast("Video yayınlandı");
-              loadVelzonYoutubeBatches();
-            } catch (e) {
-              toast(e.message, true);
+              await doPublish();
+            } catch (err) {
+              toast(err.message, true);
               btn.disabled = false;
               btn.textContent = "Yayınla";
             }
           };
           card.appendChild(btn);
         }
+
+        card.onclick = () => openPostDetail({
+          title: s.title,
+          text: s.narration,
+          meta: (s.hashtags || []).join(" "),
+          published: s.published,
+          url: s.url,
+          onPublish: doPublish,
+          publishingLabel: "Video oluşturuluyor ve yükleniyor…",
+        });
         grid.appendChild(card);
       });
       section.appendChild(grid);
       container.appendChild(section);
     }
   } catch (e) {
-    container.innerHTML = "";
-    toast(e.message, true);
+    renderLoadError(container, e);
   }
 }
 
@@ -930,37 +1125,26 @@ document.addEventListener("DOMContentLoaded", () => {
     showList();
     refresh();
   };
-  $("nav-pinterest").onclick = () => {
-    showPinterestView();
-    loadPinterestBatches();
-  };
+  // nav-pinterest/nav-velzon/nav-velzon-instagram/nav-velzon-youtube linkleri
+  // kaldırıldı — navigasyon artık renderChannelList() içinde dinamik olarak
+  // kuruluyor (Velzon/Small Space Living marka girişleri + Velzon'un
+  // X/Instagram/YouTube alt-menüsü). Generate/refresh butonları ve dialog
+  // kapanış dinleyicileri kalıcı elementler, burada kalmaya devam ediyor.
   $("btn-pinterest-generate").onclick = openPinterestGenerateDialog;
   $("btn-pinterest-refresh").onclick = loadPinterestBatches;
   $("dlg-pinterest-generate").addEventListener("close", () => {
     if ($("dlg-pinterest-generate").returnValue === "ok") submitPinterestGenerate();
   });
-  $("nav-velzon").onclick = () => {
-    showVelzonView();
-    loadVelzonBatches();
-  };
   $("btn-velzon-generate").onclick = openVelzonGenerateDialog;
   $("btn-velzon-refresh").onclick = loadVelzonBatches;
   $("dlg-velzon-generate").addEventListener("close", () => {
     if ($("dlg-velzon-generate").returnValue === "ok") submitVelzonGenerate();
   });
-  $("nav-velzon-instagram").onclick = () => {
-    showVelzonInstagramView();
-    loadVelzonInstagramBatches();
-  };
   $("btn-velzon-instagram-generate").onclick = openVelzonInstagramGenerateDialog;
   $("btn-velzon-instagram-refresh").onclick = loadVelzonInstagramBatches;
   $("dlg-velzon-instagram-generate").addEventListener("close", () => {
     if ($("dlg-velzon-instagram-generate").returnValue === "ok") submitVelzonInstagramGenerate();
   });
-  $("nav-velzon-youtube").onclick = () => {
-    showVelzonYoutubeView();
-    loadVelzonYoutubeBatches();
-  };
   $("btn-velzon-youtube-generate").onclick = openVelzonYoutubeGenerateDialog;
   $("btn-velzon-youtube-refresh").onclick = loadVelzonYoutubeBatches;
   $("dlg-velzon-youtube-generate").addEventListener("close", () => {
@@ -985,6 +1169,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("dlg-channel").addEventListener("close", () => {
     if ($("dlg-channel").returnValue === "ok") saveChannelSettings();
   });
+  $("post-detail-close-x").onclick = () => $("dlg-post-detail").close();
   refresh();
   setInterval(() => {
     if (state.job) return;

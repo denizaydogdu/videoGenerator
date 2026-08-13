@@ -138,9 +138,21 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       `publishContainer` sonrası `published=true` (url=null) hemen kalıcı
       hale getiriliyor, permalink ayrı try/catch'te deneniyor. Yeni testle
       doğrulandı, 203/203 yeşil.
-- [ ] **Canlı ilk post denemesi** — backoffice'ten "+ Yeni parti üret" ile
-      bir batch üret, bir postu "Yayınla" ile gerçek @velzontr hesabına
-      gönder, Instagram'da göründüğünü doğrula.
+- [x] **Canlı ilk post denemesi + container-ready bug düzeltildi** ✅
+      (2026-08-13) — kullanıcı gerçek bir postu "Yayınla" ile denedi,
+      Instagram `HTTP 400 "Media ID is not available"` (subcode 2207027)
+      döndü. Kök neden: container oluşturulduktan hemen sonra publish
+      denenmiş, Instagram tarafında container henüz FINISHED durumuna
+      gelmemiş. Düzeltme: `waitUntilContainerReady()` eklendi
+      (`VelzonInstagramApiClient`) — `status_code` FINISHED olana kadar
+      polling (max 10 deneme × 2sn, ERROR/EXPIRED'de hemen fırlatır,
+      timeout'ta da fırlatır — sessizce publish'e geçmez),
+      `VelzonInstagramPublishService.publishPost()` içinde
+      `publishContainer()`'dan önce çağrılıyor. Adversarial review'da
+      polling mantığı, thread-blocking (BackofficeServer'ın diğer
+      publish endpoint'leriyle aynı senkron desende, kabul edilebilir),
+      idempotent-publish sıralaması ve test kapsamı doğrulandı — 238/238
+      yeşil, prod'a deploy edildi.
 - [ ] **Gerçek piyasa verisi entegrasyonu (yeni, 2026-08-12 başladı)** —
       `VelzonMarketDataClient` yazıldı (gate.velzon.tr/api/chart/v2/{symbol},
       X-API-KEY ile — Velzon'un kendi Django frontend'inin de kullandığı
@@ -152,6 +164,40 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       `velzon.market.api.key` burada da güncellenmeli. Henüz içerik
       üretimine (VelzonInstagramPostGenerator/VelzonTweetGenerator)
       bağlanmadı — sıradaki adım bu.
+
+### Backoffice UX — sol menü + detay modalı ✅ (2026-08-12/13, kullanıcı geri bildirimiyle 4-5 tur)
+- [x] **Sol menü kanala-özel dinamik alt-menüye çevrildi** — eski statik
+      "Diğer kanallar / Pinterest / Velzon X / Velzon Instagram / Velzon
+      YouTube" listesi kaldırıldı. Artık sadece 2 kanal adı görünüyor
+      (Unsolved Files, "Small Space Living" — Pinterest'in kişisel marka
+      adı, jenerik "Pinterest" değil), Velzon'a tıklanınca X/Instagram/
+      YouTube alt-menüsü DOM'da hemen altına (aynı liste içine, ayrı
+      `<ul>` değil) açılıyor. `state.brand`, `VELZON_PLATFORMS` dizisi,
+      `renderChannelList()` (sadece render, network isteği yok — veri
+      `loadChannels()`'ta ayrı çekiliyor), `hideAllViews()`,
+      `showVelzonBrandView()` (Velzon'a tıklayınca otomatik bir platfoma
+      geçmeden "platform seçin" boş ekranı) eklendi.
+- [x] **"Velzon not configured" kırmızı hata → sakin bilgi kutusu** —
+      henüz kurulmamış platforma (X) girince artık kırmızı toast yerine
+      "Bu platform henüz yapılandırılmadı" mesajı (`renderLoadError()`,
+      503 durumunu diğer hatalardan ayırıyor).
+- [x] **Kart tıklayınca detay modalı** — daha önce onaylanmış ama
+      kodlanmamış bir özellik: kullanıcı "içine girip izleyemiyorum ne
+      yaptığını, yayınlandı diyor ne yayınlandı" diye bildirdi. 4
+      platformun (Pinterest, Velzon X/Instagram/YouTube) ortak kart
+      tıklama davranışı: `openPostDetail()` — görsel/başlık/metin/meta +
+      yayınlanmışsa "Yayında, görüntüle ↗" linki, değilse "Yayınla"
+      butonu (kartın kendi butonuyla aynı yayın mantığı, `stopPropagation`
+      ile korunmuş çift-tıklama riski yok).
+- [x] **Adversarial review + bug düzeltildi** ✅ (2026-08-13) — bağımsız
+      review agent'ı: modal içindeki "Yayınlanıyor…" metni
+      `publishingLabel` parametresini yok sayıyordu, Velzon YouTube'un
+      (dakikalar sürebilen video render+upload) "Video oluşturuluyor ve
+      yükleniyor…" özel mesajı yerine hep genel "Yayınlanıyor…"
+      gösteriyordu — kullanıcıya app'in donmuş gibi görünme riski.
+      Düzeltildi (`publishBtn.textContent = publishingLabel ||
+      "Yayınlanıyor…"`), XSS/idempotency/dead-code kontrolleri temiz
+      çıktı. 238/238 yeşil, prod'a deploy edildi.
 
 ## ✅ OAuth kalıcılığı çözüldü
 

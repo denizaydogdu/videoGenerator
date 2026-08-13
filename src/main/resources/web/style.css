@@ -39,6 +39,7 @@ body {
 }
 .side-list li:hover { background:var(--surface-2); color:var(--text); }
 .side-list li.active { background:var(--surface-2); color:var(--text); font-weight:500; }
+.side-list li.sub-item { padding-left:24px; font-size:13px; }
 .badge {
   background:var(--primary-600); color:#fff; font-size:12px;
   border-radius:999px; padding:0 8px; min-width:24px; text-align:center;
@@ -189,6 +190,22 @@ dialog .field { margin-bottom:16px; }
   grid-column:1/-1; text-align:center; color:var(--text-dim);
   padding:64px 0; font-size:14px;
 }
+
+/* ---------- Post detay penceresi (Pinterest/Velzon kartları) ---------- */
+.post-detail-dialog { max-width:520px; width:90vw; position:relative; }
+.post-detail-close-x {
+  position:absolute; top:12px; right:12px; padding:4px 10px; font-size:16px;
+}
+.post-detail-image {
+  width:100%; border-radius:8px; margin-bottom:16px; display:block;
+}
+.post-detail-title { font-size:18px; font-weight:600; margin-bottom:8px; }
+.post-detail-text {
+  font-size:14px; line-height:1.6; color:var(--text);
+  white-space:pre-wrap; margin-bottom:12px;
+}
+.post-detail-meta { font-size:12px; color:var(--text-dim); margin-bottom:16px; }
+.pinterest-pin-card, .velzon-tweet-card { cursor:pointer; }
 
 .stats-box {
   font-size:13px; color:var(--text-dim); margin-bottom:16px;
