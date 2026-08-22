@@ -5,128 +5,46 @@ import com.google.gson.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
- * X (Twitter) API v2 istemcisi. TikTok/Pinterest'ten farkı: OAuth2
- * Authorization Code akışı PKCE zorunlu kılıyor (X'in tek desteklediği
- * grant type) — code_verifier authorizationUrl()'de üretilir, aynı
- * exchange isteğinde tekrar sunulur. Token exchange Pinterest gibi
- * HTTP Basic Auth (client_id:client_secret) kullanır.
- *
- * Canlı bulgu (2026-08-11 araştırması): Pay-Per-Use hesaplarda POST
- * /2/tweets bazı geliştiricilerde 403 veriyor — en yaygın kök sebep
- * uygulamanın bir Project'e bağlı olmaması. Kurulumda uygulama mutlaka
- * bir Project altında oluşturulmalı.
+ * X (Twitter) API v2 istemcisi — OAuth 1.0a (user-context). Velzon'un
+ * kendi Django backend'inde (velzon-django, post_finansal_ozet.py) zaten
+ * kullanılan ve @velzontr hesabına yetkilendirilmiş olduğu doğrulanmış
+ * (curl ile GET /2/users/me -&gt; {"username":"velzontr"}) anahtarları
+ * yeniden kullanır. OAuth2 PKCE'nin aksine hiçbir interaktif
+ * yetkilendirme akışı GEREKMEZ — anahtarlar zaten kalıcı olarak
+ * yetkilendirilmiş durumda, token dosyası/exchange/refresh yok.
  */
 public class XApiClient {
     private static final Logger logger = LoggerFactory.getLogger(XApiClient.class);
-    private static final String AUTH_URL = "https://x.com/i/oauth2/authorize";
-    private static final String TOKEN_URL = "https://api.x.com/2/oauth2/token";
     private static final String TWEETS_URL = "https://api.x.com/2/tweets";
     private static final int MAX_TWEET_LEN = 280;
 
     public interface Http {
-        String postFormBasicAuth(String url, String clientId, String clientSecret,
-                                 Map<String, String> form) throws Exception;
-        String postJson(String url, String bearerToken, String jsonBody) throws Exception;
+        String post(String url, String authorizationHeader, String jsonBody) throws Exception;
     }
 
     private final Http http;
-    private final String clientId;
-    private final String clientSecret;
-    private final String redirectUri;
-    private final Path tokenFile;
+    private final String apiKey;
+    private final String apiSecret;
+    private final String accessToken;
+    private final String accessTokenSecret;
     private final Gson gson = new Gson();
-    private String pendingCodeVerifier;
 
-    public XApiClient(Http http, String clientId, String clientSecret,
-                      String redirectUri, Path tokenFile) {
+    public XApiClient(Http http, String apiKey, String apiSecret,
+                      String accessToken, String accessTokenSecret) {
         this.http = http;
-        this.clientId = clientId;
-        this.clientSecret = clientSecret;
-        this.redirectUri = redirectUri;
-        this.tokenFile = tokenFile;
-    }
-
-    public String authorizationUrl(String state) {
-        pendingCodeVerifier = generateCodeVerifier();
-        String challenge = codeChallengeS256(pendingCodeVerifier);
-        return AUTH_URL
-                + "?response_type=code"
-                + "&client_id=" + urlEnc(clientId)
-                + "&redirect_uri=" + urlEnc(redirectUri)
-                + "&scope=" + urlEnc("tweet.read tweet.write users.read offline.access")
-                + "&state=" + urlEnc(state)
-                + "&code_challenge=" + challenge
-                + "&code_challenge_method=S256";
-    }
-
-    public void exchangeCode(String code) throws Exception {
-        if (pendingCodeVerifier == null) {
-            throw new IllegalStateException(
-                    "authorizationUrl() must be called first — PKCE code_verifier missing");
-        }
-        Map<String, String> form = new LinkedHashMap<>();
-        form.put("grant_type", "authorization_code");
-        form.put("code", code);
-        form.put("redirect_uri", redirectUri);
-        form.put("code_verifier", pendingCodeVerifier);
-        JsonObject resp = gson.fromJson(
-                http.postFormBasicAuth(TOKEN_URL, clientId, clientSecret, form), JsonObject.class);
-        if (resp == null || !resp.has("access_token")) {
-            throw new IllegalStateException("X token exchange failed: " + resp);
-        }
-        saveTokens(resp);
-        pendingCodeVerifier = null;
-        logger.info("X authorized");
-    }
-
-    private void saveTokens(JsonObject tokenResponse) throws Exception {
-        tokenResponse.addProperty("saved_at_epoch_s", java.time.Instant.now().getEpochSecond());
-        Files.createDirectories(tokenFile.toAbsolutePath().getParent());
-        Path tmp = Files.createTempFile(tokenFile.toAbsolutePath().getParent(), "x", ".tmp");
-        Files.writeString(tmp, gson.toJson(tokenResponse));
-        Files.move(tmp, tokenFile, StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private JsonObject loadTokens() throws Exception {
-        if (!Files.exists(tokenFile)) {
-            throw new IllegalStateException(
-                    "X not authorized yet — run 'velzon-x-auth' first");
-        }
-        return gson.fromJson(Files.readString(tokenFile), JsonObject.class);
-    }
-
-    String accessToken() throws Exception {
-        JsonObject tokens = loadTokens();
-        long savedAt = tokens.has("saved_at_epoch_s")
-                ? tokens.get("saved_at_epoch_s").getAsLong() : 0;
-        long expiresIn = tokens.has("expires_in") ? tokens.get("expires_in").getAsLong() : 0;
-        long now = java.time.Instant.now().getEpochSecond();
-        if (expiresIn > 0 && now > savedAt + expiresIn - 300) {
-            Map<String, String> form = new LinkedHashMap<>();
-            form.put("grant_type", "refresh_token");
-            form.put("refresh_token", tokens.get("refresh_token").getAsString());
-            JsonObject resp = gson.fromJson(
-                    http.postFormBasicAuth(TOKEN_URL, clientId, clientSecret, form), JsonObject.class);
-            if (resp == null || !resp.has("access_token")) {
-                throw new IllegalStateException("X token refresh failed: " + resp);
-            }
-            saveTokens(resp);
-            tokens = resp;
-            logger.info("X access token refreshed");
-        }
-        return tokens.get("access_token").getAsString();
+        this.apiKey = apiKey;
+        this.apiSecret = apiSecret;
+        this.accessToken = accessToken;
+        this.accessTokenSecret = accessTokenSecret;
     }
 
     /** Tweet'i gönderir, kalıcı permalink'i döner. */
@@ -135,11 +53,11 @@ public class XApiClient {
             throw new IllegalArgumentException("Invalid tweet length: "
                     + (text == null ? 0 : text.length()) + " (max " + MAX_TWEET_LEN + ")");
         }
-        String token = accessToken();
+        String authHeader = oauth1Header("POST", TWEETS_URL);
         JsonObject body = new JsonObject();
         body.addProperty("text", text);
         JsonObject resp = gson.fromJson(
-                http.postJson(TWEETS_URL, token, gson.toJson(body)), JsonObject.class);
+                http.post(TWEETS_URL, authHeader, gson.toJson(body)), JsonObject.class);
         if (resp == null || !resp.has("data")) {
             throw new IllegalStateException("X tweet post failed: " + resp);
         }
@@ -149,23 +67,44 @@ public class XApiClient {
         return url;
     }
 
-    private static String generateCodeVerifier() {
-        byte[] bytes = new byte[64];
-        new SecureRandom().nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    /**
+     * OAuth 1.0a "Authorization" header'ını RFC 5849'a göre imzalar. JSON
+     * gövdeli isteklerde yalnızca oauth_* parametreleri imza tabanına
+     * girer (x-www-form-urlencoded gövde/query string parametrelerinin
+     * aksine) — bu, X API v2'nin ve tweepy'nin kendi davranışıyla
+     * tutarlıdır.
+     */
+    private String oauth1Header(String method, String url) throws Exception {
+        TreeMap<String, String> oauthParams = new TreeMap<>();
+        oauthParams.put("oauth_consumer_key", apiKey);
+        oauthParams.put("oauth_nonce", UUID.randomUUID().toString().replace("-", ""));
+        oauthParams.put("oauth_signature_method", "HMAC-SHA1");
+        oauthParams.put("oauth_timestamp", String.valueOf(System.currentTimeMillis() / 1000));
+        oauthParams.put("oauth_token", accessToken);
+        oauthParams.put("oauth_version", "1.0");
+
+        String paramStr = oauthParams.entrySet().stream()
+                .map(e -> pct(e.getKey()) + "=" + pct(e.getValue()))
+                .collect(Collectors.joining("&"));
+        String baseStr = method + "&" + pct(url) + "&" + pct(paramStr);
+        String signingKey = pct(apiSecret) + "&" + pct(accessTokenSecret);
+
+        Mac mac = Mac.getInstance("HmacSHA1");
+        mac.init(new SecretKeySpec(signingKey.getBytes(StandardCharsets.UTF_8), "HmacSHA1"));
+        String signature = Base64.getEncoder().encodeToString(
+                mac.doFinal(baseStr.getBytes(StandardCharsets.UTF_8)));
+        oauthParams.put("oauth_signature", signature);
+
+        return "OAuth " + oauthParams.entrySet().stream()
+                .map(e -> pct(e.getKey()) + "=\"" + pct(e.getValue()) + "\"")
+                .collect(Collectors.joining(", "));
     }
 
-    private static String codeChallengeS256(String verifier) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(verifier.getBytes(StandardCharsets.US_ASCII));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
-        } catch (Exception e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
-    }
-
-    private static String urlEnc(String s) {
-        return java.net.URLEncoder.encode(s, StandardCharsets.UTF_8);
+    /** RFC 3986 percent-encode — java.net.URLEncoder form-encoding kurallarından farklı. */
+    private static String pct(String s) {
+        return java.net.URLEncoder.encode(s, StandardCharsets.UTF_8)
+                .replace("+", "%20")
+                .replace("*", "%2A")
+                .replace("%7E", "~");
     }
 }

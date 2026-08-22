@@ -3,6 +3,42 @@
 > Güncelleme: 2026-08-12. Kaynak: 5-ajan denetimi + ilk hafta deneyimi.
 > Kural: bir iş bitince `[x]` işaretle + tarihi yaz. Sıra önemlidir.
 
+## 1️⃣3️⃣ Velzon için yeni içerik formatları (2026-08-13, henüz başlanmadı — sadece not)
+
+Kullanıcı X'te iki farklı hesap/yaklaşım gördü, Velzon için ikisi de
+değerlendirilecek:
+
+1. **"Emily" tarzı — sabit AI karakter/persona ile devam eden hikaye**
+   (@vibeeval'in paylaşımı): tek bir yapay yüzün onlarca fotoğrafta
+   aynı kişi gibi kalması (yüz oranı, çil haritası, saç çizgisi vb. çok
+   katı bir "karakter tarifi" ile). Kullanıcının fikri: Velzon için 2-3
+   karakterli, devam eden bölümlü bir hikaye ("hikaye 1, hikaye 2...")
+   — biri "bugün borsa ne oldu" diye sorar, diğeri Velzon uygulamasını
+   açıp gösterir.
+   - **RİSK — YÜKSEK, doğrulandı:** @Bakkaltalih (ayrı bir X kullanıcısı)
+     Flux3/Minimax/Seedance ile tam olarak bunu denemiş: "Flux3 ile
+     mesela bir sahnede sabit 3 karakter gösteremedim... hepsi bir
+     noktada saçmalıyorlar." Yani bizim mevcut pipeline'ımızdan (API
+     çağrısıyla gpt-image-2, LoRA/referans-kilitleme YOK) çok daha
+     güçlü, adanmış video-üretim modellerinde bile çoklu-karakter
+     tutarlılığı hâlâ çözülmemiş bir problem.
+   - **Önerilen yol:** tam pipeline'a girmeden önce küçük bir fizibilite
+     testi — tek karakter için sabit bir "karakter tarifi" prompt'u ile
+     4-5 farklı sahnede görsel üretip gerçekten aynı kişi gibi durup
+     durmadığına bakılmalı.
+2. **"Yusuf K / Lezziko" tarzı — biri uygulamayı kullanırken gösteren
+   içerik + ücretli reklam testi** (@KscYusuf'un kendi mobil uygulaması
+   Lezziko için TikTok/Instagram/X'te yaptığı organik + ücretli reklam
+   deneyleri, Flux 3/Seedance 2.5 ile video üretimi). Karakter
+   tutarlılığı GEREKMİYOR (tek seferlik/bağımsız videolar) — mevcut
+   Velzon YouTube pipeline'ına (anlatıcı + görsel) çok daha yakın, yerine
+   "biri telefonda Velzon'u kullanıyor" sahnesi konabilir. **RİSK —
+   DÜŞÜK**, üstüne ücretli reklam testiyle birleştirilebilir.
+- [ ] Karar/sıra: önce Yusuf K tarzı (düşük risk, mevcut altyapıya
+      yakın) denenmeli, Emily tarzı (yüksek risk) ayrı bir fizibilite
+      testine bırakılmalı — henüz başlanmadı, Velzon'un 4 platformu
+      (IG/YouTube/TikTok/X) bitince ele alınacak.
+
 ## 1️⃣2️⃣ Velzon çoklu-platform genişlemesi (2026-08-12 başladı)
 
 **DÜZELTME (2026-08-12, oturum ilerlerken fark edildi):** Velzon
@@ -18,9 +54,10 @@ mevcut hesaplar: https://x.com/scyborsa, https://www.tiktok.com/@scyborsa,
 https://www.instagram.com/scyborsa/, web: scyborsa.com) — aynı desenle
 (AI metin+görsel, backoffice'ten tek tık yayın) ileride eklenecek.
 
-Sıra: Velzon IG → Velzon YouTube → **Velzon TikTok (kod hazır, kullanıcı
-Developer Portal kurulumu bekliyor)** → Velzon X (kod zaten hazır, sadece
-Developer Portal kurulumu bekleniyor) → sonra Scyborsa.
+**TAMAMLANDI (2026-08-22): Velzon IG → YouTube → TikTok → X — dördü de
+uçtan uca canlı ve doğrulanmış.** Sırada: Scyborsa (3. firma, henüz
+başlanmadı) ve "1️⃣3️⃣ Velzon için yeni içerik formatları" (aşağıda,
+henüz başlanmadı).
 
 **Scyborsa veri entegrasyonu ERTELENDİ** (2026-08-12 araştırıldı,
 kullanıcı kararıyla) — otomatik DB/API entegrasyonu şu an kapalı yol:
@@ -419,22 +456,43 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
 - [ ] Yerel Mac'teki `serve` artık gereksiz — ileride sadece geliştirme/test
       için kullanılacak, gerçek üretim artık sunucuda.
 
-## 🔟 Velzon X (Twitter) otomasyonu (2026-08-11 başladı, kullanıcının kendi şirketi)
+## 🔟 Velzon X (Twitter) otomasyonu — TAMAMLANDI ✅ (2026-08-11 başladı, 2026-08-22 bitti)
 
 - [x] **Kod + backoffice entegrasyonu tamamlandı** ✅ (commit 471f2c2, 163 test)
-      — `XApiClient` (OAuth2 PKCE, Pinterest'ten farklı: X'in tek desteklediği
-      grant type), `VelzonTweetGenerator` (Türkçe taslak üretimi, fintech
-      güvenlik kuralları: KDV/vergi rakamı yok, kesin hukuki tavsiye yok,
-      rakip adı yok), backoffice'te "Velzon X" bölümü (Pinterest ile aynı yerde)
-- [ ] **Kullanıcı: developer.x.com'da uygulama kur** — ÖNEMLİ: mutlaka bir
-      **Project** altında oluştur (standalone app'lerde Pay-Per-Use planında
-      bilinen bir 403 hatası var), Permissions: Read and Write, callback:
-      `https://videogenerator.velzon.tr/x-callback.html`, Pay-Per-Use'a
-      kredi yükle (~$5 yeterli, tweet başı ~$0.015)
-- [ ] Client ID + Secret gelince config'e ekle (`x.client.id`, `x.client.secret`)
-      → `velzon-x-auth` ile tek seferlik yetkilendirme
-- [ ] İlk gerçek tweet testi (backoffice'ten "Yayınla") — 403 hatası çıkarsa
-      app'in Project'e bağlı olduğunu ve kredi bakiyesini kontrol et
+      — `VelzonTweetGenerator` (Türkçe taslak üretimi, fintech güvenlik
+      kuralları: KDV/vergi rakamı yok, kesin hukuki tavsiye yok, rakip adı
+      yok), backoffice'te "Velzon X" bölümü (Pinterest ile aynı yerde)
+- [x] **KARAR DEĞİŞİKLİĞİ (2026-08-22): OAuth2 PKCE yerine OAuth1.0a'ya
+      geçildi, developer.x.com kurulumu HİÇ gerekmedi** ✅ — kullanıcı
+      Velzon'un kendi Django prod backend'inde (velzon-django,
+      `post_finansal_ozet.py`) zaten @velzontr hesabına yetkilendirilmiş,
+      test edilmiş bir `tweepy`/OAuth1.0a entegrasyonu olduğunu hatırladı.
+      Bir agent o kodu inceledi: iki management command (`post_tweet.py`,
+      `post_finansal_ozet.py`), anahtarlar `tweet_config.json`'da (env
+      değil). **Güvenlik notu:** bu dosya git'e commit edilmiş durumda
+      (geçmişte de var) — ayrı bir konu, kullanıcıya bildirildi, rotate
+      etmesi önerilir. Anahtarların gerçekten @velzontr'e ait olduğu
+      OAuth1-imzalı bir `GET /2/users/me` çağrısıyla canlı doğrulandı.
+      **Not:** o Django komutu otomatik tetiklenmiyor — asıl bilanço-
+      senkron cron job'ının kendi docstring'i "Sosyal medya post'u YOK"
+      diyor, yani "yeni bilanço düşünce otomatik tweet atıyor" izlenimi
+      yanlıştı, aslında elle çalıştırılan bağımsız bir araç.
+- [x] **`XApiClient` OAuth1.0a için tamamen yeniden yazıldı** ✅
+      (2026-08-22) — RFC 5849 HMAC-SHA1 imzalama JDK stdlib ile elle
+      implemente edildi (dış OAuth kütüphanesi yok), Java implementasyonu
+      gerçek API'ye karşı ayrı bir doğrulama scriptiyle test edildi
+      (`GET /2/users/me` → `@velzontr`). Artık interaktif yetkilendirme
+      akışı YOK — `authorizationUrl`/`exchangeCode`/token dosyası/refresh
+      tamamen kaldırıldı (`velzon-x-auth` CLI komutu da silindi, gerek
+      kalmadı), `VelzonPublishService` değişmedi (sadece `postTweet(text)`
+      çağırıyor). 250/250 test yeşil. Adversarial review: 0 bulgu.
+- [x] **İlk gerçek tweet testi — canlı doğrulandı** ✅ (2026-08-22) —
+      Hacim Skoru makalesinden bir tweet üretilip yayınlandı:
+      `x.com/i/status/2091176948613431514`, X API'sinin kendisinden
+      (`GET /2/tweets/:id`) doğrulandı, metin tam eşleşiyor.
+      **Velzon'un dört platformu da (Instagram, YouTube, TikTok, X)
+      artık uçtan uca canlı ve doğrulanmış — Velzon çoklu-platform
+      genişlemesi tamamlandı.**
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 

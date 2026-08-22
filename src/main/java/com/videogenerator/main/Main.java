@@ -43,7 +43,6 @@ public class Main {
                 }
                 case "tiktok-auth" -> runTikTokAuth(config);
                 case "pinterest-auth" -> runPinterestAuth(config);
-                case "velzon-x-auth" -> runVelzonXAuth(config);
                 case "velzon-youtube-auth" -> runVelzonYouTubeAuth();
                 case "velzon-tiktok-auth" -> runVelzonTiktokAuth(config);
                 case "pinterest-batch" -> {
@@ -393,40 +392,22 @@ public class Main {
                 config.get("velzon.ig.user.id", ""), token);
     }
 
+    /**
+     * X (Twitter) OAuth 1.0a — velzon-django'nun (post_finansal_ozet.py)
+     * zaten @velzontr hesabına yetkilendirilmiş anahtarlarını yeniden
+     * kullanır. Yetkilendirme akışı YOK — anahtarlar hazır, tek koşul
+     * config'te dolu olmaları.
+     */
     private static com.videogenerator.velzon.XApiClient buildXApiClient(Configuration config) {
-        String key = config.get("x.client.id", "");
-        if (key.isBlank()) {
+        String apiKey = config.get("velzon.x.api.key", "");
+        if (apiKey.isBlank()) {
             return null;
         }
         return new com.videogenerator.velzon.XApiClient(
-                new com.videogenerator.velzon.XHttp(), key,
-                config.get("x.client.secret", ""),
-                config.get("x.redirect.uri", ""),
-                java.nio.file.Path.of("config/tokens/velzon-x.json"));
-    }
-
-    /** Tek seferlik X yetkilendirmesi — PKCE dahil, tiktok-auth ile aynı akış şekli. */
-    private static void runVelzonXAuth(Configuration config) {
-        try {
-            var client = buildXApiClient(config);
-            if (client == null) {
-                System.out.println("ERROR: x.client.id not configured");
-                System.exit(1);
-            }
-            String url = client.authorizationUrl("st" + System.currentTimeMillis());
-            System.out.println("========================================");
-            System.out.println("1) Bu adresi tarayıcıda aç ve X hesabıyla onayla:");
-            System.out.println(url);
-            System.out.println("2) Açılan sayfadaki kodu buraya yapıştır ve Enter'a bas:");
-            System.out.print("> ");
-            String code = new java.util.Scanner(System.in).nextLine().trim();
-            client.exchangeCode(code);
-            System.out.println("X yetkilendirme TAMAM — token kaydedildi.");
-        } catch (Exception e) {
-            logger.error("velzon-x-auth failed", e);
-            System.out.println("ERROR: " + e.getMessage());
-            System.exit(1);
-        }
+                new com.videogenerator.velzon.XHttp(), apiKey,
+                config.get("velzon.x.api.secret", ""),
+                config.get("velzon.x.access.token", ""),
+                config.get("velzon.x.access.token.secret", ""));
     }
 
     private static String orDefault(String value, String fallback) {
@@ -681,7 +662,7 @@ public class Main {
                 server.withVelzon(velzonService, velzonGenerator);
                 logger.info("Velzon backoffice section enabled");
             } else {
-                logger.info("Velzon not configured (x.client.id empty) — section disabled");
+                logger.info("Velzon not configured (velzon.x.api.key empty) — section disabled");
             }
 
             var velzonInstagramExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -888,7 +869,6 @@ public class Main {
         System.out.println("  publish-meta <jobId> [lang] - Backfill IG/FB for an already-published job");
         System.out.println("  tiktok-auth          - One-time TikTok OAuth authorization");
         System.out.println("  pinterest-auth       - One-time Pinterest OAuth authorization");
-        System.out.println("  velzon-x-auth        - One-time X (Twitter) OAuth authorization (PKCE)");
         System.out.println("  velzon-youtube-auth  - One-time Velzon YouTube channel OAuth (opens browser)");
         System.out.println("  velzon-tiktok-auth   - One-time Velzon TikTok (@velzon_tr) OAuth authorization");
         System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (also available in backoffice)");

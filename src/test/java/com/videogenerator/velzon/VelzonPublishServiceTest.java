@@ -15,7 +15,7 @@ class VelzonPublishServiceTest {
         int postCalls = 0;
 
         FakeClient() {
-            super(null, "cid", "csecret", "https://cb/", Path.of("/dev/null"));
+            super(null, "apikey", "apisecret", "token", "tokensecret");
         }
 
         @Override
