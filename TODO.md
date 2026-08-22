@@ -97,8 +97,11 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       = tam 2 segment). Canlı doğrulama: düzeltmeden önce ~50 makale,
       sonra **434 makale, 14 kategori** doğru yakalanıyor. Yeni test
       eklendi, 233/233 yeşil.
-- [ ] Prod sunucusuna deploy + canlı ilk içerik üretimi denemesi (yeni
-      makale seçici ile, gerçek bir Velzon makalesinden tweet/post/video).
+- [x] **Prod sunucusuna deploy + canlı ilk içerik üretimi denemesi** ✅
+      — bu madde eski (2026-08-12), o zamandan beri dört platformda da
+      (IG/YouTube/TikTok/X) gerçek Velzon makalelerinden canlı içerik
+      üretilip yayınlandı (bkz. aşağıdaki bölümler ve "🔟 Velzon X").
+      İşaretlenmemiş kalmış, şimdi düzeltildi.
 
 ### Velzon YouTube — OAuth tamamlandı, video pipeline sırada
 - [x] `velzon-youtube-auth` CLI komutu eklendi (Main.java) — YouTube'un
