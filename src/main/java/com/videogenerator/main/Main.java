@@ -393,6 +393,23 @@ public class Main {
     }
 
     /**
+     * Klasik Facebook Graph API — Page Access Token zaten config'te uzun
+     * ömürlü ve doğrulanmış (bkz. VelzonFacebookApiClient javadoc). Instagram
+     * ile aynı gerekçe: ayrı bir OAuth exchange CLI komutu YOK, sadece token
+     * varlığı kontrol edilir.
+     */
+    private static com.videogenerator.velzon.VelzonFacebookApiClient buildVelzonFacebookClient(
+            Configuration config) {
+        String token = config.get("velzon.fb.page.token", "");
+        if (token.isBlank()) {
+            return null;
+        }
+        return new com.videogenerator.velzon.VelzonFacebookApiClient(
+                new com.videogenerator.velzon.VelzonFacebookHttp(),
+                config.get("velzon.fb.page.id", ""), token);
+    }
+
+    /**
      * X (Twitter) OAuth 1.0a — velzon-django'nun (post_finansal_ozet.py)
      * zaten @velzontr hesabına yetkilendirilmiş anahtarlarını yeniden
      * kullanır. Yetkilendirme akışı YOK — anahtarlar hazır, tek koşul
@@ -693,6 +710,37 @@ public class Main {
                 logger.info("Velzon Instagram backoffice section enabled");
             } else {
                 logger.info("Velzon Instagram not configured (velzon.ig.access.token empty)"
+                        + " — section disabled");
+            }
+
+            var velzonFacebookExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+            var velzonFacebookClient = buildVelzonFacebookClient(config);
+            if (velzonFacebookClient != null) {
+                var velzonFacebookService = new com.videogenerator.velzon.VelzonFacebookPublishService(
+                        velzonFacebookClient,
+                        java.nio.file.Path.of(config.get("velzon.fb.output.dir",
+                                "output/velzon-facebook")),
+                        config.get("velzon.fb.public.base.url", "https://shorts.velzon.tr"));
+                com.videogenerator.web.BackofficeServer.VelzonFacebookBatchLauncher
+                        velzonFacebookGenerator = (articlePath, count) -> velzonFacebookExecutor.submit(() -> {
+                            try {
+                                var article = velzonKnowledgeBaseClient.fetchArticle(articlePath);
+                                String topicPrompt = article.title() + "\n\n" + article.content();
+                                var gen = new com.videogenerator.velzon.VelzonFacebookPostGenerator(
+                                        new com.videogenerator.api.OpenAiGptClient(),
+                                        new com.videogenerator.api.ImageApiClient());
+                                var outDir = java.nio.file.Path.of(
+                                        config.get("velzon.fb.output.dir", "output/velzon-facebook"),
+                                        "batch-" + System.currentTimeMillis());
+                                gen.generateBatch(topicPrompt, count, outDir);
+                            } catch (Exception e) {
+                                logger.error("Velzon Facebook batch generation failed", e);
+                            }
+                        });
+                server.withVelzonFacebook(velzonFacebookService, velzonFacebookGenerator);
+                logger.info("Velzon Facebook backoffice section enabled");
+            } else {
+                logger.info("Velzon Facebook not configured (velzon.fb.page.token empty)"
                         + " — section disabled");
             }
 

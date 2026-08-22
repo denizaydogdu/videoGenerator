@@ -493,9 +493,55 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       Hacim Skoru makalesinden bir tweet üretilip yayınlandı:
       `x.com/i/status/2091176948613431514`, X API'sinin kendisinden
       (`GET /2/tweets/:id`) doğrulandı, metin tam eşleşiyor.
-      **Velzon'un dört platformu da (Instagram, YouTube, TikTok, X)
-      artık uçtan uca canlı ve doğrulanmış — Velzon çoklu-platform
-      genişlemesi tamamlandı.**
+
+## 1️⃣4️⃣ Velzon Facebook — TAMAMLANDI ✅ (2026-08-22, aynı gün başlayıp bitti)
+
+Kullanıcı "facebook var velzon unuttuk" diyerek gündeme getirdi — Velzon'un
+hiç Facebook Sayfası yoktu, sıfırdan açıldı.
+
+- [x] **Facebook Sayfası açıldı** ✅ — "Velzon" (id `1287143177812980`,
+      kategori Financial Service), profil fotoğrafı (mevcut TikTok logosu)
+      + hazırlanan kapak fotoğrafı (ImageMagick ile logo + koyu lacivert
+      zemin + slogan, 820×312) + bio + iletişim bilgileri eklendi.
+- [x] **Meta App kurulumu — mevcut "Velzon Social Publisher" app'i
+      yeniden kullanıldı** ✅ — Instagram için zaten var olan app'e
+      **"Manage everything on your Page"** use case'i eklendi (yeni app
+      kurmaya gerek kalmadı). Kurulum sırasında iki Meta portal bug'ı
+      atlatıldı: (1) Graph Explorer'ın "Get Page Access Token" kısayolu
+      eski/kaldırılmış bir izin adı (`manage_pages`) gönderip hata
+      veriyordu — "Get User Access Token" + izinleri elle ekleme yoluna
+      gidildi; (2) yeni izinler (`pages_manage_posts` vb.) önce arama
+      sonucunda çıkmadı çünkü "Manage everything on your Page" use case'i
+      henüz eklenmemişti.
+- [x] **Kalıcı Page Access Token üretildi** ✅ — kısa ömürlü (1 saat)
+      kullanıcı token'ı `fb_exchange_token` ile 60 günlük uzun ömürlü
+      kullanıcı token'ına, ordan `/me/accounts` ile **kalıcı** (`expires_at:
+      0`) Page Access Token'a çevrildi (Instagram'da izlenen yöntemin
+      aynısı). `pages_manage_posts`/`pages_show_list`/
+      `pages_read_engagement`/`business_management` izinleri doğrulandı
+      (`debug_token` ile canlı kontrol edildi).
+- [x] **Kod tarafı tamamlandı** ✅ — `VelzonFacebookApiClient`/
+      `PostGenerator`/`PublishService` (Instagram'ın deseninin birebir
+      aynısı, ama Facebook'un klasik Graph API'si Instagram'ın 3 adımlı
+      async container akışının aksine TEK senkron çağrı:
+      `POST /{page-id}/photos` → anında `{id, post_id}` döner, polling
+      yok), backoffice entegrasyonu (`/api/velzon-facebook/*`, "Velzon"
+      alt-menüsüne 5. sekme). 31 yeni test (250→281), hepsi TDD ile
+      yazıldı. Adversarial review: 0 bulgu.
+- [x] **API alan adları (`post_id`, `permalink_url`) gerçek API'ye karşı
+      canlı doğrulandı** ✅ — kod agent'ı dokümantasyona erişemediği için
+      bu alan adlarını tahminle yazmıştı (savunmacı kodlanmış: `post_id`
+      yoksa `id`'ye düşer), deploy öncesi gerçek bir test postu atılıp
+      (sonra silindi) her iki alan adı da doğrulandı, kodun
+      değişmesine gerek kalmadı.
+- [x] **İlk gerçek Facebook post denemesi — canlı doğrulandı** ✅ —
+      Trend Skoru makalesinden bir post üretilip yayınlandı:
+      `facebook.com/122093191227462342/posts/122093192793462342`,
+      Facebook API'sinin kendisinden doğrulandı, metin tam eşleşiyor.
+
+**Velzon'un beş platformu da (Instagram, YouTube, TikTok, X, Facebook)
+artık uçtan uca canlı ve doğrulanmış — Velzon çoklu-platform genişlemesi
+tamamen tamamlandı.**
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 

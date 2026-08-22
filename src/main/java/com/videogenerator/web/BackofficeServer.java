@@ -73,6 +73,14 @@ public class BackofficeServer {
     private com.videogenerator.velzon.VelzonInstagramPublishService velzonInstagramService; // opsiyonel
     private VelzonInstagramBatchLauncher velzonInstagramGenerator; // opsiyonel
 
+    /** Velzon Facebook gönderi partisi üretimini arka planda tetikler — bkz. VelzonBatchLauncher javadoc'u. */
+    public interface VelzonFacebookBatchLauncher {
+        void launch(String articlePath, int count);
+    }
+
+    private com.videogenerator.velzon.VelzonFacebookPublishService velzonFacebookService; // opsiyonel
+    private VelzonFacebookBatchLauncher velzonFacebookGenerator; // opsiyonel
+
     /** Velzon YouTube senaryo partisi üretimini arka planda tetikler — bkz. VelzonBatchLauncher javadoc'u. */
     public interface VelzonYoutubeBatchLauncher {
         void launch(String articlePath, int count);
@@ -119,6 +127,14 @@ public class BackofficeServer {
             VelzonInstagramBatchLauncher velzonInstagramGenerator) {
         this.velzonInstagramService = velzonInstagramService;
         this.velzonInstagramGenerator = velzonInstagramGenerator;
+        return this;
+    }
+
+    public BackofficeServer withVelzonFacebook(
+            com.videogenerator.velzon.VelzonFacebookPublishService velzonFacebookService,
+            VelzonFacebookBatchLauncher velzonFacebookGenerator) {
+        this.velzonFacebookService = velzonFacebookService;
+        this.velzonFacebookGenerator = velzonFacebookGenerator;
         return this;
     }
 
@@ -193,6 +209,10 @@ public class BackofficeServer {
             }
             if (seg.length >= 3 && "velzon-instagram".equals(seg[2])) {
                 handleVelzonInstagramApi(ex, method, seg);
+                return;
+            }
+            if (seg.length >= 3 && "velzon-facebook".equals(seg[2])) {
+                handleVelzonFacebookApi(ex, method, seg);
                 return;
             }
             if (seg.length >= 3 && "velzon-knowledge-base".equals(seg[2])) {
@@ -660,6 +680,85 @@ public class BackofficeServer {
             throws IOException {
         java.nio.file.Path path = unchecked(
                 () -> velzonInstagramService.imageFile(batchId, file));
+        if (!java.nio.file.Files.exists(path)) {
+            sendError(ex, 404, "Image not found");
+            return;
+        }
+        byte[] bytes = java.nio.file.Files.readAllBytes(path);
+        ex.getResponseHeaders().set("Content-Type", "image/png");
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
+        }
+    }
+
+    // ==================== Velzon Facebook ====================
+
+    private void handleVelzonFacebookApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (velzonFacebookService == null) {
+            sendError(ex, 503, "Velzon Facebook not configured");
+            return;
+        }
+        switch (seg.length) {
+            case 4 -> {
+                switch (seg[3]) {
+                    case "batches" -> requireGet(ex, method, () -> sendJson(ex, 200,
+                            gson.toJson(unchecked(velzonFacebookService::listBatches))));
+                    case "generate" -> requirePost(ex, method, () -> generateVelzonFacebookBatch(ex));
+                    default -> sendError(ex, 404, "Unknown resource");
+                }
+            }
+            case 7 -> {
+                if (!"batches".equals(seg[3]) || !"images".equals(seg[5])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requireGet(ex, method, () -> serveVelzonFacebookImage(ex, seg[4], seg[6]));
+            }
+            case 8 -> {
+                if (!"batches".equals(seg[3]) || !"posts".equals(seg[5])
+                        || !"publish".equals(seg[7])) {
+                    sendError(ex, 404, "Unknown resource");
+                    return;
+                }
+                requirePost(ex, method, () -> publishVelzonFacebookPost(ex, seg[4], seg[6]));
+            }
+            default -> sendError(ex, 404, "Unknown resource");
+        }
+    }
+
+    private void generateVelzonFacebookBatch(HttpExchange ex) throws IOException {
+        JsonObject body = readJson(ex);
+        String articlePath = body.has("articlePath") ? body.get("articlePath").getAsString() : null;
+        if (articlePath == null || articlePath.isBlank()) {
+            throw new IllegalArgumentException("articlePath is required");
+        }
+        int count = body.has("count") ? body.get("count").getAsInt() : 5;
+        if (velzonFacebookGenerator == null) {
+            sendError(ex, 503, "Velzon Facebook generator not configured");
+            return;
+        }
+        velzonFacebookGenerator.launch(articlePath, count);
+        sendJson(ex, 202, "{\"queued\":true}");
+    }
+
+    private void publishVelzonFacebookPost(HttpExchange ex, String batchId, String indexStr)
+            throws IOException {
+        int index;
+        try {
+            index = Integer.parseInt(indexStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid post index");
+        }
+        var updated = unchecked(() -> velzonFacebookService.publishPost(batchId, index));
+        sendJson(ex, 200, gson.toJson(updated));
+    }
+
+    private void serveVelzonFacebookImage(HttpExchange ex, String batchId, String file)
+            throws IOException {
+        java.nio.file.Path path = unchecked(
+                () -> velzonFacebookService.imageFile(batchId, file));
         if (!java.nio.file.Files.exists(path)) {
             sendError(ex, 404, "Image not found");
             return;

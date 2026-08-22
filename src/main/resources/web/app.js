@@ -7,7 +7,7 @@ const state = {
   status: "",      // seçili durum filtresi ("" = tümü)
   job: null,       // açık iş (detay görünümü)
   lang: null,      // seçili dil sekmesi
-  view: "jobs",    // "jobs" | "pinterest" | "velzon" | "velzon-instagram" | "velzon-youtube" | "velzon-tiktok"
+  view: "jobs",    // "jobs" | "pinterest" | "velzon" | "velzon-instagram" | "velzon-facebook" | "velzon-youtube" | "velzon-tiktok"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -21,6 +21,8 @@ const VELZON_PLATFORMS = [
     show: () => { showVelzonView(); loadVelzonBatches(); } },
   { view: "velzon-instagram", label: "Instagram",
     show: () => { showVelzonInstagramView(); loadVelzonInstagramBatches(); } },
+  { view: "velzon-facebook", label: "Facebook",
+    show: () => { showVelzonFacebookView(); loadVelzonFacebookBatches(); } },
   { view: "velzon-youtube", label: "YouTube",
     show: () => { showVelzonYoutubeView(); loadVelzonYoutubeBatches(); } },
   { view: "velzon-tiktok", label: "TikTok",
@@ -336,6 +338,7 @@ function hideAllViews() {
   $("velzon-brand-view").classList.add("hidden");
   $("velzon-view").classList.add("hidden");
   $("velzon-instagram-view").classList.add("hidden");
+  $("velzon-facebook-view").classList.add("hidden");
   $("velzon-youtube-view").classList.add("hidden");
   $("velzon-tiktok-view").classList.add("hidden");
 }
@@ -968,6 +971,133 @@ async function submitVelzonInstagramGenerate() {
   }
 }
 
+// ---------- Velzon Facebook ----------
+function showVelzonFacebookView() {
+  state.job = null;
+  state.view = "velzon-facebook";
+  hideAllViews();
+  $("velzon-facebook-view").classList.remove("hidden");
+  $("page-title").textContent = "Velzon Facebook";
+  $("player").pause?.();
+}
+
+async function loadVelzonFacebookBatches() {
+  const container = $("velzon-facebook-batches");
+  try {
+    const batches = await api("/api/velzon-facebook/batches");
+    container.innerHTML = "";
+    if (!batches.length) {
+      container.innerHTML = '<div class="empty">Henüz parti yok. "+ Yeni parti üret" ile başlat.</div>';
+      return;
+    }
+    for (const batch of batches) {
+      const section = document.createElement("div");
+      section.className = "pinterest-batch";
+      const heading = document.createElement("div");
+      heading.className = "pinterest-batch-title";
+      const publishedCount = batch.posts.filter((p) => p.published).length;
+      heading.textContent = `${batch.id} — ${publishedCount}/${batch.posts.length} yayında`;
+      section.appendChild(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "pinterest-pin-grid";
+      batch.posts.forEach((post, index) => {
+        const card = document.createElement("div");
+        card.className = "pinterest-pin-card";
+        const img = document.createElement("img");
+        img.loading = "lazy";
+        img.src = `/api/velzon-facebook/batches/${batch.id}/images/${post.file}`;
+        const desc = document.createElement("div");
+        desc.className = "pinterest-pin-desc";
+        desc.textContent = post.caption;
+        card.append(img, desc);
+
+        const doPublish = async () => {
+          await api(`/api/velzon-facebook/batches/${batch.id}/posts/${index}/publish`, {
+            method: "POST",
+          });
+          toast("Gönderi yayınlandı");
+          loadVelzonFacebookBatches();
+        };
+
+        if (post.published && post.url) {
+          const link = document.createElement("a");
+          link.className = "btn btn-secondary btn-small";
+          link.textContent = "Facebook'ta gör ↗";
+          link.href = post.url;
+          link.target = "_blank";
+          link.onclick = (e) => e.stopPropagation();
+          card.appendChild(link);
+        } else if (post.published) {
+          const badge = document.createElement("span");
+          badge.className = "chip";
+          badge.textContent = "Yayında";
+          card.appendChild(badge);
+        } else {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-primary btn-small";
+          btn.textContent = "Yayınla";
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            btn.disabled = true;
+            btn.textContent = "Yayınlanıyor…";
+            try {
+              await doPublish();
+            } catch (err) {
+              toast(err.message, true);
+              btn.disabled = false;
+              btn.textContent = "Yayınla";
+            }
+          };
+          card.appendChild(btn);
+        }
+
+        card.onclick = () => openPostDetail({
+          imageUrl: img.src,
+          text: post.caption,
+          published: post.published,
+          url: post.url,
+          onPublish: doPublish,
+        });
+        grid.appendChild(card);
+      });
+      section.appendChild(grid);
+      container.appendChild(section);
+    }
+  } catch (e) {
+    renderLoadError(container, e);
+  }
+}
+
+function openVelzonFacebookGenerateDialog() {
+  const dlg = $("dlg-velzon-facebook-generate");
+  dlg.returnValue = "";
+  loadVelzonArticles()
+    .then((articles) => populateVelzonArticleDatalist("velzon-facebook-article-list", articles))
+    .catch((e) => toast(e.message, true));
+  dlg.showModal();
+}
+
+async function submitVelzonFacebookGenerate() {
+  const articleTitle = $("velzon-facebook-article").value.trim();
+  const count = Number($("velzon-facebook-count").value) || 5;
+  if (!articleTitle) return;
+  const articlePath = resolveVelzonArticlePath(articleTitle);
+  if (!articlePath) {
+    toast("Listeden gerçek bir makale seçmelisiniz", true);
+    return;
+  }
+  try {
+    await api("/api/velzon-facebook/generate", {
+      method: "POST",
+      body: JSON.stringify({ articlePath, count }),
+    });
+    toast(`Parti kuyruğa alındı (${count} gönderi) — birkaç dakika sürebilir, sonra Yenile'ye bas`);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
 // ---------- Velzon YouTube ----------
 function showVelzonYoutubeView() {
   state.job = null;
@@ -1248,6 +1378,11 @@ document.addEventListener("DOMContentLoaded", () => {
   $("dlg-velzon-instagram-generate").addEventListener("close", () => {
     if ($("dlg-velzon-instagram-generate").returnValue === "ok") submitVelzonInstagramGenerate();
   });
+  $("btn-velzon-facebook-generate").onclick = openVelzonFacebookGenerateDialog;
+  $("btn-velzon-facebook-refresh").onclick = loadVelzonFacebookBatches;
+  $("dlg-velzon-facebook-generate").addEventListener("close", () => {
+    if ($("dlg-velzon-facebook-generate").returnValue === "ok") submitVelzonFacebookGenerate();
+  });
   $("btn-velzon-youtube-generate").onclick = openVelzonYoutubeGenerateDialog;
   $("btn-velzon-youtube-refresh").onclick = loadVelzonYoutubeBatches;
   $("dlg-velzon-youtube-generate").addEventListener("close", () => {
@@ -1280,6 +1415,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.view === "pinterest") loadPinterestBatches();
     else if (state.view === "velzon") loadVelzonBatches();
     else if (state.view === "velzon-instagram") loadVelzonInstagramBatches();
+    else if (state.view === "velzon-facebook") loadVelzonFacebookBatches();
     else if (state.view === "velzon-youtube") loadVelzonYoutubeBatches();
     else if (state.view === "velzon-tiktok") loadVelzonTiktokBatches();
     else refresh();
