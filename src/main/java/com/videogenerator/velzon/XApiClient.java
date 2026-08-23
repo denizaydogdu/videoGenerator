@@ -25,10 +25,15 @@ import java.util.stream.Collectors;
 public class XApiClient {
     private static final Logger logger = LoggerFactory.getLogger(XApiClient.class);
     private static final String TWEETS_URL = "https://api.x.com/2/tweets";
+    private static final String MEDIA_UPLOAD_URL = "https://upload.twitter.com/1.1/media/upload.json";
     private static final int MAX_TWEET_LEN = 280;
 
     public interface Http {
         String post(String url, String authorizationHeader, String jsonBody) throws Exception;
+
+        /** multipart/form-data POST (görsel yükleme) — OAuth1 imzasına sadece oauth_* girer, dosya içeriği girmez. */
+        String postMultipart(String url, String authorizationHeader, byte[] fileBytes, String filename)
+                throws Exception;
     }
 
     private final Http http;
@@ -64,6 +69,49 @@ public class XApiClient {
         String id = resp.getAsJsonObject("data").get("id").getAsString();
         String url = "https://x.com/i/status/" + id;
         logger.info("Tweet posted: {}", url);
+        return url;
+    }
+
+    /**
+     * Görseli X'in media-upload uç noktasına (v1.1, basit/chunked-olmayan
+     * yükleme — bizim ürettiğimiz görseller çok küçük olduğu için 5MB
+     * sınırının çok altında) yükler, {@code media_id_string}'i döner.
+     */
+    public String uploadMedia(byte[] imageBytes) throws Exception {
+        String authHeader = oauth1Header("POST", MEDIA_UPLOAD_URL);
+        JsonObject resp = gson.fromJson(
+                http.postMultipart(MEDIA_UPLOAD_URL, authHeader, imageBytes, "image.png"),
+                JsonObject.class);
+        if (resp == null || !resp.has("media_id_string")) {
+            throw new IllegalStateException("X media upload failed: " + resp);
+        }
+        String mediaId = resp.get("media_id_string").getAsString();
+        logger.info("Media uploaded: {}", mediaId);
+        return mediaId;
+    }
+
+    /** Tweet'i tek bir görselle birlikte gönderir, kalıcı permalink'i döner. */
+    public String postTweetWithMedia(String text, String mediaId) throws Exception {
+        if (text == null || text.isBlank() || text.length() > MAX_TWEET_LEN) {
+            throw new IllegalArgumentException("Invalid tweet length: "
+                    + (text == null ? 0 : text.length()) + " (max " + MAX_TWEET_LEN + ")");
+        }
+        String authHeader = oauth1Header("POST", TWEETS_URL);
+        JsonObject media = new JsonObject();
+        com.google.gson.JsonArray mediaIds = new com.google.gson.JsonArray();
+        mediaIds.add(mediaId);
+        media.add("media_ids", mediaIds);
+        JsonObject body = new JsonObject();
+        body.addProperty("text", text);
+        body.add("media", media);
+        JsonObject resp = gson.fromJson(
+                http.post(TWEETS_URL, authHeader, gson.toJson(body)), JsonObject.class);
+        if (resp == null || !resp.has("data")) {
+            throw new IllegalStateException("X tweet post failed: " + resp);
+        }
+        String id = resp.getAsJsonObject("data").get("id").getAsString();
+        String url = "https://x.com/i/status/" + id;
+        logger.info("Tweet with media posted: {}", url);
         return url;
     }
 

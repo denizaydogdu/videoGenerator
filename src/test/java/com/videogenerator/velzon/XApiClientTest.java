@@ -18,6 +18,12 @@ class XApiClientTest {
         String response = "{\"data\":{\"id\":\"TWEET123\",\"text\":\"hi\"}}";
 
         @Override
+        public String postMultipart(String url, String authorizationHeader, byte[] fileBytes,
+                                    String filename) {
+            throw new UnsupportedOperationException("bu testte kullanılmıyor");
+        }
+
+        @Override
         public String post(String url, String authorizationHeader, String jsonBody) {
             urls.add(url);
             authHeaders.add(authorizationHeader);

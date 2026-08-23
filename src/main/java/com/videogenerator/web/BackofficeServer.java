@@ -158,6 +158,16 @@ public class BackofficeServer {
         return this;
     }
 
+    // AI Brifing işi (VelzonAiBriefingJob) tamamen otomatik postlar — burada
+    // manifest/batch/publish YOK, sadece ürettiği görselleri X/Instagram/
+    // Facebook'un çektiği public URL üzerinden servis etmek için kök dizin.
+    private java.nio.file.Path velzonAiBriefingImagesDir; // opsiyonel
+
+    public BackofficeServer withVelzonAiBriefing(java.nio.file.Path velzonAiBriefingImagesDir) {
+        this.velzonAiBriefingImagesDir = velzonAiBriefingImagesDir;
+        return this;
+    }
+
     private HttpServer httpServer;
     private java.util.concurrent.ExecutorService executor;
 
@@ -213,6 +223,10 @@ public class BackofficeServer {
             }
             if (seg.length >= 3 && "velzon-facebook".equals(seg[2])) {
                 handleVelzonFacebookApi(ex, method, seg);
+                return;
+            }
+            if (seg.length >= 3 && "velzon-ai-briefing".equals(seg[2])) {
+                handleVelzonAiBriefingApi(ex, method, seg);
                 return;
             }
             if (seg.length >= 3 && "velzon-knowledge-base".equals(seg[2])) {
@@ -501,6 +515,52 @@ public class BackofficeServer {
         }
         var updated = unchecked(() -> pinterestService.publishPin(batchId, index));
         sendJson(ex, 200, gson.toJson(updated));
+    }
+
+    // ==================== Velzon AI Brifing ====================
+
+    /** {@code GET /api/velzon-ai-briefing/images/{jobId}/{file}} — VelzonAiBriefingJob'ın ürettiği görseli servis eder. */
+    private void handleVelzonAiBriefingApi(HttpExchange ex, String method, String[] seg)
+            throws IOException {
+        if (velzonAiBriefingImagesDir == null) {
+            sendError(ex, 503, "Velzon AI briefing not configured");
+            return;
+        }
+        if (seg.length != 6 || !"images".equals(seg[3])) {
+            sendError(ex, 404, "Unknown resource");
+            return;
+        }
+        requireGet(ex, method, () -> serveVelzonAiBriefingImage(ex, seg[4], seg[5]));
+    }
+
+    private void serveVelzonAiBriefingImage(HttpExchange ex, String jobId, String file)
+            throws IOException {
+        java.nio.file.Path path = unchecked(() -> resolveVelzonAiBriefingImage(jobId, file));
+        if (!java.nio.file.Files.exists(path)) {
+            sendError(ex, 404, "Image not found");
+            return;
+        }
+        byte[] bytes = java.nio.file.Files.readAllBytes(path);
+        ex.getResponseHeaders().set("Content-Type", "image/png");
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
+        }
+    }
+
+    private java.nio.file.Path resolveVelzonAiBriefingImage(String jobId, String file) {
+        if (jobId == null || jobId.contains("/") || jobId.contains("\\") || jobId.contains("..")) {
+            throw new IllegalArgumentException("Invalid jobId: " + jobId);
+        }
+        if (file == null || file.contains("/") || file.contains("\\") || file.contains("..")) {
+            throw new IllegalArgumentException("Invalid file: " + file);
+        }
+        java.nio.file.Path root = velzonAiBriefingImagesDir.normalize();
+        java.nio.file.Path path = root.resolve(jobId).resolve(file).normalize();
+        if (!path.startsWith(root)) {
+            throw new IllegalArgumentException("Path escapes directory: " + jobId);
+        }
+        return path;
     }
 
     private void servePinterestImage(HttpExchange ex, String batchId, String file)

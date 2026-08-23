@@ -804,6 +804,73 @@ public class Main {
                         + " — section disabled");
             }
 
+            var velzonAiBriefingSchedulerHolder =
+                    new com.videogenerator.velzon.VelzonAiBriefingScheduler[1];
+            String velzonBriefingApiKey = config.get("velzon.briefing.api.key", "");
+            if (!velzonBriefingApiKey.isBlank() && xClient != null
+                    && velzonInstagramClient != null && velzonFacebookClient != null) {
+                var velzonBriefingClient = new com.videogenerator.velzon.VelzonBriefingClient(
+                        new com.videogenerator.velzon.VelzonBriefingHttp(),
+                        config.get("velzon.briefing.base.url", "https://www.velzon.tr"),
+                        velzonBriefingApiKey);
+                var velzonBriefingGenerator = new com.videogenerator.velzon.VelzonAiBriefingPostGenerator(
+                        new com.videogenerator.api.OpenAiGptClient());
+                var velzonBriefingImagesDir = java.nio.file.Path.of(
+                        config.get("velzon.briefing.output.dir", "output/velzon-ai-briefing"));
+
+                com.videogenerator.velzon.VelzonAiBriefingJob.XPoster velzonBriefingXPoster =
+                        new com.videogenerator.velzon.VelzonAiBriefingJob.XPoster() {
+                            @Override
+                            public String uploadMedia(byte[] imageBytes) throws Exception {
+                                return xClient.uploadMedia(imageBytes);
+                            }
+                            @Override
+                            public String postTweetWithMedia(String text, String mediaId)
+                                    throws Exception {
+                                return xClient.postTweetWithMedia(text, mediaId);
+                            }
+                        };
+                com.videogenerator.velzon.VelzonAiBriefingJob.InstagramPoster velzonBriefingIgPoster =
+                        new com.videogenerator.velzon.VelzonAiBriefingJob.InstagramPoster() {
+                            @Override
+                            public String createMediaContainer(String imageUrl, String caption)
+                                    throws Exception {
+                                return velzonInstagramClient.createMediaContainer(imageUrl, caption);
+                            }
+                            @Override
+                            public void waitUntilContainerReady(String creationId) throws Exception {
+                                velzonInstagramClient.waitUntilContainerReady(creationId);
+                            }
+                            @Override
+                            public String publishContainer(String creationId) throws Exception {
+                                return velzonInstagramClient.publishContainer(creationId);
+                            }
+                        };
+                com.videogenerator.velzon.VelzonAiBriefingJob.FacebookPoster velzonBriefingFbPoster =
+                        velzonFacebookClient::createPost;
+
+                var velzonAiBriefingJob = new com.videogenerator.velzon.VelzonAiBriefingJob.Builder()
+                        .briefingClient(velzonBriefingClient)
+                        .contentGenerator(velzonBriefingGenerator)
+                        .imageGenerator(new com.videogenerator.api.ImageApiClient())
+                        .xPoster(velzonBriefingXPoster)
+                        .instagramPoster(velzonBriefingIgPoster)
+                        .facebookPoster(velzonBriefingFbPoster)
+                        .outputDir(velzonBriefingImagesDir)
+                        .publicBaseUrl(config.get("velzon.briefing.public.base.url",
+                                "https://shorts.velzon.tr"))
+                        .build();
+
+                server.withVelzonAiBriefing(velzonBriefingImagesDir);
+                velzonAiBriefingSchedulerHolder[0] =
+                        new com.videogenerator.velzon.VelzonAiBriefingScheduler(velzonAiBriefingJob);
+                velzonAiBriefingSchedulerHolder[0].start();
+                logger.info("Velzon AI Brifing scheduler enabled (günde 5x, BIST saatleri)");
+            } else {
+                logger.info("Velzon AI Brifing not configured (velzon.briefing.api.key empty, "
+                        + "or X/Instagram/Facebook not all configured) — section disabled");
+            }
+
             int port = server.start();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -814,6 +881,9 @@ public class Main {
                 velzonExecutor.shutdownNow();
                 velzonInstagramExecutor.shutdownNow();
                 velzonYoutubeExecutor.shutdownNow();
+                if (velzonAiBriefingSchedulerHolder[0] != null) {
+                    velzonAiBriefingSchedulerHolder[0].stop();
+                }
             }));
 
             System.out.println("========================================");
