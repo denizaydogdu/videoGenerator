@@ -45,6 +45,7 @@ public class Main {
                 case "pinterest-auth" -> runPinterestAuth(config);
                 case "velzon-youtube-auth" -> runVelzonYouTubeAuth();
                 case "velzon-tiktok-auth" -> runVelzonTiktokAuth(config);
+                case "velzon-ai-briefing-test" -> runVelzonAiBriefingTest(config);
                 case "pinterest-batch" -> {
                     requireArg(args, "pinterest-batch requires: <count> <niche prompt...>");
                     if (args.length < 3) {
@@ -432,6 +433,107 @@ public class Main {
     }
 
     /**
+     * Velzon AI Brifing job'ını gerçek istemcilerle kurar — {@code serve}
+     * (scheduler'a bağlar) VE {@code velzon-ai-briefing-test} (tek seferlik
+     * manuel tetikleme) tarafından ortak kullanılır, tek bir kaynaktan wiring.
+     * X/Instagram/Facebook'un hepsi yapılandırılmamışsa (veya brifing anahtarı
+     * boşsa) {@code null} döner.
+     */
+    private static com.videogenerator.velzon.VelzonAiBriefingJob buildVelzonAiBriefingJob(
+            Configuration config) {
+        String velzonBriefingApiKey = config.get("velzon.briefing.api.key", "");
+        var xClient = buildXApiClient(config);
+        var velzonInstagramClient = buildVelzonInstagramClient(config);
+        var velzonFacebookClient = buildVelzonFacebookClient(config);
+        if (velzonBriefingApiKey.isBlank() || xClient == null
+                || velzonInstagramClient == null || velzonFacebookClient == null) {
+            return null;
+        }
+
+        var velzonBriefingClient = new com.videogenerator.velzon.VelzonBriefingClient(
+                new com.videogenerator.velzon.VelzonBriefingHttp(),
+                config.get("velzon.briefing.base.url", "https://www.velzon.tr"),
+                velzonBriefingApiKey);
+        var velzonBriefingGenerator = new com.videogenerator.velzon.VelzonAiBriefingPostGenerator(
+                new com.videogenerator.api.OpenAiGptClient());
+        var velzonBriefingImagesDir = java.nio.file.Path.of(
+                config.get("velzon.briefing.output.dir", "output/velzon-ai-briefing"));
+
+        com.videogenerator.velzon.VelzonAiBriefingJob.XPoster velzonBriefingXPoster =
+                new com.videogenerator.velzon.VelzonAiBriefingJob.XPoster() {
+                    @Override
+                    public String uploadMedia(byte[] imageBytes) throws Exception {
+                        return xClient.uploadMedia(imageBytes);
+                    }
+                    @Override
+                    public String postTweetWithMedia(String text, String mediaId)
+                            throws Exception {
+                        return xClient.postTweetWithMedia(text, mediaId);
+                    }
+                };
+        com.videogenerator.velzon.VelzonAiBriefingJob.InstagramPoster velzonBriefingIgPoster =
+                new com.videogenerator.velzon.VelzonAiBriefingJob.InstagramPoster() {
+                    @Override
+                    public String createMediaContainer(String imageUrl, String caption)
+                            throws Exception {
+                        return velzonInstagramClient.createMediaContainer(imageUrl, caption);
+                    }
+                    @Override
+                    public void waitUntilContainerReady(String creationId) throws Exception {
+                        velzonInstagramClient.waitUntilContainerReady(creationId);
+                    }
+                    @Override
+                    public String publishContainer(String creationId) throws Exception {
+                        return velzonInstagramClient.publishContainer(creationId);
+                    }
+                };
+        com.videogenerator.velzon.VelzonAiBriefingJob.FacebookPoster velzonBriefingFbPoster =
+                velzonFacebookClient::createPost;
+
+        return new com.videogenerator.velzon.VelzonAiBriefingJob.Builder()
+                .briefingClient(velzonBriefingClient)
+                .contentGenerator(velzonBriefingGenerator)
+                .imageGenerator(new com.videogenerator.api.ImageApiClient())
+                .xPoster(velzonBriefingXPoster)
+                .instagramPoster(velzonBriefingIgPoster)
+                .facebookPoster(velzonBriefingFbPoster)
+                .outputDir(velzonBriefingImagesDir)
+                .publicBaseUrl(config.get("velzon.briefing.public.base.url",
+                        "https://shorts.velzon.tr"))
+                .build();
+    }
+
+    /**
+     * {@code velzon-ai-briefing-test} CLI komutu — BIST-açık kontrolünü
+     * atlayarak (gün/saat farketmeksizin) TEK bir gerçek turu elle tetikler.
+     * Dry-run DEĞİLDİR: gerçek X/Instagram/Facebook hesaplarına gerçek
+     * postlar gider. Zamanlanmış otomatik ilk turdan önce gözetimli
+     * doğrulama için (bkz. TODO.md "1️⃣5️⃣ Velzon AI Brifing").
+     */
+    private static void runVelzonAiBriefingTest(Configuration config) {
+        var job = buildVelzonAiBriefingJob(config);
+        if (job == null) {
+            System.out.println("ERROR: Velzon AI Briefing not configured "
+                    + "(velzon.briefing.api.key empty, or X/Instagram/Facebook not all configured)");
+            System.exit(1);
+            return;
+        }
+        System.out.println("========================================");
+        System.out.println("Velzon AI Brifing — MANUEL TEST TETİKLEMESİ");
+        System.out.println("BIST saat kontrolü ATLANDI. Bu GERÇEK bir post üretip");
+        System.out.println("X/Instagram/Facebook hesaplarına GERÇEKTEN yayınlayacak.");
+        System.out.println("========================================");
+        try {
+            job.runOnceForTesting();
+            System.out.println("Tamamlandı — X/Instagram/Facebook loglarını/hesaplarını kontrol edin.");
+        } catch (Exception e) {
+            logger.error("velzon-ai-briefing-test failed", e);
+            System.out.println("ERROR: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    /**
      * Velzon YouTube için diğer entegrasyonlardaki gibi bir "client id/
      * access token" config anahtarı YOK — OAuth zaten insan tarafından
      * tamamlandı (info@velzon.tr hesabı, bkz. proje notları) ve token
@@ -806,62 +908,10 @@ public class Main {
 
             var velzonAiBriefingSchedulerHolder =
                     new com.videogenerator.velzon.VelzonAiBriefingScheduler[1];
-            String velzonBriefingApiKey = config.get("velzon.briefing.api.key", "");
-            if (!velzonBriefingApiKey.isBlank() && xClient != null
-                    && velzonInstagramClient != null && velzonFacebookClient != null) {
-                var velzonBriefingClient = new com.videogenerator.velzon.VelzonBriefingClient(
-                        new com.videogenerator.velzon.VelzonBriefingHttp(),
-                        config.get("velzon.briefing.base.url", "https://www.velzon.tr"),
-                        velzonBriefingApiKey);
-                var velzonBriefingGenerator = new com.videogenerator.velzon.VelzonAiBriefingPostGenerator(
-                        new com.videogenerator.api.OpenAiGptClient());
-                var velzonBriefingImagesDir = java.nio.file.Path.of(
-                        config.get("velzon.briefing.output.dir", "output/velzon-ai-briefing"));
-
-                com.videogenerator.velzon.VelzonAiBriefingJob.XPoster velzonBriefingXPoster =
-                        new com.videogenerator.velzon.VelzonAiBriefingJob.XPoster() {
-                            @Override
-                            public String uploadMedia(byte[] imageBytes) throws Exception {
-                                return xClient.uploadMedia(imageBytes);
-                            }
-                            @Override
-                            public String postTweetWithMedia(String text, String mediaId)
-                                    throws Exception {
-                                return xClient.postTweetWithMedia(text, mediaId);
-                            }
-                        };
-                com.videogenerator.velzon.VelzonAiBriefingJob.InstagramPoster velzonBriefingIgPoster =
-                        new com.videogenerator.velzon.VelzonAiBriefingJob.InstagramPoster() {
-                            @Override
-                            public String createMediaContainer(String imageUrl, String caption)
-                                    throws Exception {
-                                return velzonInstagramClient.createMediaContainer(imageUrl, caption);
-                            }
-                            @Override
-                            public void waitUntilContainerReady(String creationId) throws Exception {
-                                velzonInstagramClient.waitUntilContainerReady(creationId);
-                            }
-                            @Override
-                            public String publishContainer(String creationId) throws Exception {
-                                return velzonInstagramClient.publishContainer(creationId);
-                            }
-                        };
-                com.videogenerator.velzon.VelzonAiBriefingJob.FacebookPoster velzonBriefingFbPoster =
-                        velzonFacebookClient::createPost;
-
-                var velzonAiBriefingJob = new com.videogenerator.velzon.VelzonAiBriefingJob.Builder()
-                        .briefingClient(velzonBriefingClient)
-                        .contentGenerator(velzonBriefingGenerator)
-                        .imageGenerator(new com.videogenerator.api.ImageApiClient())
-                        .xPoster(velzonBriefingXPoster)
-                        .instagramPoster(velzonBriefingIgPoster)
-                        .facebookPoster(velzonBriefingFbPoster)
-                        .outputDir(velzonBriefingImagesDir)
-                        .publicBaseUrl(config.get("velzon.briefing.public.base.url",
-                                "https://shorts.velzon.tr"))
-                        .build();
-
-                server.withVelzonAiBriefing(velzonBriefingImagesDir);
+            var velzonAiBriefingJob = buildVelzonAiBriefingJob(config);
+            if (velzonAiBriefingJob != null) {
+                server.withVelzonAiBriefing(java.nio.file.Path.of(
+                        config.get("velzon.briefing.output.dir", "output/velzon-ai-briefing")));
                 velzonAiBriefingSchedulerHolder[0] =
                         new com.videogenerator.velzon.VelzonAiBriefingScheduler(velzonAiBriefingJob);
                 velzonAiBriefingSchedulerHolder[0].start();
@@ -989,6 +1039,7 @@ public class Main {
         System.out.println("  pinterest-auth       - One-time Pinterest OAuth authorization");
         System.out.println("  velzon-youtube-auth  - One-time Velzon YouTube channel OAuth (opens browser)");
         System.out.println("  velzon-tiktok-auth   - One-time Velzon TikTok (@velzon_tr) OAuth authorization");
+        System.out.println("  velzon-ai-briefing-test - Manually trigger ONE real AI Briefing post (bypasses BIST-hours gate — NOT a dry run)");
         System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (also available in backoffice)");
         System.out.println("  help                 - Show this help");
     }

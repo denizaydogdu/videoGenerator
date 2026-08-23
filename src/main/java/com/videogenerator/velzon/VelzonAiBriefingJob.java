@@ -87,6 +87,16 @@ public class VelzonAiBriefingJob implements Runnable {
         }
     }
 
+    /**
+     * {@link #run()} gibi ama BIST-açık kontrolünü ({@code tradingTimeCheck})
+     * ATLAR — CLI'daki {@code velzon-ai-briefing-test} komutu için, gözetimli
+     * manuel doğrulama amaçlı. Dry-run DEĞİLDİR: gerçek X/Instagram/Facebook
+     * hesaplarına gerçek bir post gönderir.
+     */
+    public void runOnceForTesting() throws Exception {
+        runOnce();
+    }
+
     /** Tek bir çalıştırmanın tam akışı — sembol seç, brifing çek, uyarla, görsel üret, 3 platforma postla. */
     void runOnce() throws Exception {
         cleanupOldImages();
