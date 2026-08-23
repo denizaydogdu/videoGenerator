@@ -543,7 +543,7 @@ hiç Facebook Sayfası yoktu, sıfırdan açıldı.
 artık uçtan uca canlı ve doğrulanmış — Velzon çoklu-platform genişlemesi
 tamamen tamamlandı.**
 
-## 1️⃣5️⃣ Velzon AI Brifing — kod tamamlandı, prod'a deploy edildi ✅ (2026-08-23)
+## 1️⃣5️⃣ Velzon AI Brifing — TAMAMLANDI, uçtan uca canlı doğrulandı ✅ (2026-08-23)
 
 Kullanıcının isteği: terminal sayfasındaki AI Brifing özelliğinin ürettiği
 gerçek hisse analizini X/Instagram/Facebook'a BIST saatleri içinde günde
@@ -576,12 +576,30 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
       `shorts.velzon.tr` (shorts-backoffice servisi), zamanlayıcı armed
       (ilk tetikleme: ertesi gün 10:30 İstanbul saati), mevcut 5 Velzon
       bölümü de bozulmadan çalışmaya devam ediyor.
-- [ ] **Bekleyen:** Django Jenkins deploy'u kullanıcı tarafından henüz
-      tamamlanmadı — tamamlanana kadar zamanlanmış her tetiklemede
-      `fetchBriefing` hatayla başarısız olur (loglanır, post atılmaz,
-      zararsız). Deploy tamamlanınca bir sonraki zamanlanmış turda ilk
-      gerçek otomatik post canlıya çıkacak — henüz kullanıcı tarafından
-      gözle doğrulanmadı.
+- [x] **Django Jenkins deploy'u tamamlandı, gerçek bir eksik yakalandı ve
+      düzeltildi** ✅ (2026-08-23 akşam) — kod prod'a deploy olmuştu
+      (dosya 19:10'da güncellenmiş, servis 19:12'de restart) ama
+      `.env`'e `AI_BRIEFING_SERVICE_API_KEY` hiç eklenmemişti — bu yüzden
+      doğru anahtarla bile uç nokta 401 dönüyordu (`if not
+      AI_BRIEFING_SERVICE_API_KEY: return False` fail-closed davranışı).
+      Kullanıcının onayıyla (yalnızca `.env`'e tek satır eklendi, Django
+      KODUNA dokunulmadı) düzeltildi + `velzon-django` restart edildi,
+      canlı curl ile doğrulandı.
+- [x] **Manuel gözetimli uçtan uca test — TAM BAŞARILI** ✅ (2026-08-23
+      akşam) — zamanlanmış ilk otomatik turdan (ertesi gün 10:30) önce
+      gözetimli doğrulama için yeni bir CLI komutu eklendi
+      (`velzon-ai-briefing-test`, BIST-saat kapısını atlar, dry-run
+      DEĞİL). İlk deneme YEREL makineden çalıştırılınca X'e başarıyla
+      postladı ama Instagram/Facebook görsel URL'sini (`shorts.velzon.tr`,
+      hep prod'a sabit) çekemedi — görsel üretimi ve görsel servisinin
+      aynı makinede olması gerektiği ortaya çıktı (mimari gereklilik,
+      kod hatası değil). Komut PROD sunucudan çalıştırılınca üç platform
+      da başarılı: X (`x.com/i/status/2091572834665443774`), Instagram
+      (media 17902808877483968), Facebook
+      (`facebook.com/122093191227462342/posts/122093851131462342`) —
+      Facebook permalink Graph API'sinin kendisinden teyit edildi.
+      **Velzon AI Brifing artık uçtan uca gerçek verilerle canlı ve
+      doğrulanmış.**
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 
