@@ -559,8 +559,10 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
 - [x] **Java tarafı — TDD ile 8 parça** ✅ — `BistTradingCalendar`
       (Scyborsa'nın gerçek prod `SessionHolidays` enum'ından uyarlandı),
       `VelzonBist100SymbolPool` (102 gerçek sembol), `VelzonBriefingClient`,
-      `VelzonAiBriefingPostGenerator` (KURUMSAL AKIŞ bölümünü LLM'e hiç
-      göstermeden çıkarır), `XApiClient` görsel-postlama desteği,
+      `VelzonAiBriefingPostGenerator` (BAŞLANGIÇTA KURUMSAL AKIŞ bölümünü
+      LLM'e hiç göstermeden çıkarıyordu — bu davranış 2026-08-23 akşamı
+      kullanıcının kararıyla TERSİNE ÇEVRİLDİ, aşağıdaki ilgili maddeye
+      bak), `XApiClient` görsel-postlama desteği,
       `VelzonAiBriefingJob` (3 platforma bağımsız try/catch),
       `VelzonAiBriefingScheduler` (günde 5 sabit saat, BIST saatleri),
       `BackofficeServer` görsel servisi, `Main.java` wiring.
@@ -600,6 +602,22 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
       Facebook permalink Graph API'sinin kendisinden teyit edildi.
       **Velzon AI Brifing artık uçtan uca gerçek verilerle canlı ve
       doğrulanmış.**
+- [x] **KARAR TERSİNE ÇEVRİLDİ: KURUMSAL AKIŞ artık postlarda da paylaşılıyor**
+      ✅ (2026-08-23, ilk canlı tweet sonrası aynı akşam) — canlı ilk
+      tweet'i gören kullanıcı "AKD/TAKAS verisi de gitse?" diye sordu;
+      riskler (Professional-üyelere-özel ücretli/lisanslı veri) tekrar
+      hatırlatıldı, kullanıcı **açıkça onayladı**: kurum isimleri +
+      yüzdeler artık AYNEN paylaşılsın (genelleştirilmeden). Kod
+      tarafında `stripKurumsalAkis()` ve ilgili regex tamamen kaldırıldı
+      — `adapt()` artık ham metnin TAMAMINI LLM'e veriyor. SYSTEM
+      prompt'a kurum adı+yüzdeyi Instagram/Facebook'ta aynen kullanma,
+      X'te sadece 280 karakter sınırına sığarsa dahil etme talimatı
+      eklendi. 5 eski strip-testi silindi, 1 test tersine çevrildi
+      (artık KURUMSAL AKIŞ'ın LLM'e ULAŞTIĞINI doğruluyor). Bağımsız
+      review: 0 kritik bulgu (sadece bu TODO satırının güncellenmesi
+      istendi). 332 → 327 test (temizlenen testler nedeniyle azaldı,
+      regresyon yok). Prod'a deploy edilecek (yarının 10:30 turu bu
+      davranışla çalışmalı).
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 

@@ -28,109 +28,6 @@ class VelzonAiBriefingPostGeneratorTest {
             Teknik tablo kısa vadede zayıf. [SKOR: SAT]
             """;
 
-    @Test
-    void stripKurumsalAkisRemovesOnlyThatSection() {
-        String stripped = VelzonAiBriefingPostGenerator.stripKurumsalAkis(FULL_BRIEFING);
-
-        assertTrue(stripped.contains("TEKNİK GÖRÜNÜM"));
-        assertTrue(stripped.contains("TEMEL DURUM"));
-        assertTrue(stripped.contains("KONSENSUS"));
-        assertTrue(stripped.contains("RİSK"));
-        assertTrue(stripped.contains("ÖZET"));
-        assertFalse(stripped.contains("KURUMSAL AKIŞ"));
-        assertFalse(stripped.contains("IS %35.8"));
-        assertFalse(stripped.contains("YATIRIM FINANSMAN"));
-        assertFalse(stripped.contains("TURK EKONOMI BANKASI"));
-    }
-
-    @Test
-    void stripKurumsalAkisIsNoOpWhenSectionAbsent() {
-        String noSection = "TEKNİK GÖRÜNÜM\nTest.\n\nÖZET\nTest.";
-        assertEquals(noSection, VelzonAiBriefingPostGenerator.stripKurumsalAkis(noSection));
-    }
-
-    @Test
-    void stripKurumsalAkisWorksWhenNotImmediatelyFollowedByRisk() {
-        // Django bölüm sırası değişse (RİSK hemen ardından gelmese) bile
-        // temizlik hâlâ çalışmalı — RİSK'e hardcode bağımlılık olmamalı.
-        String reordered = """
-                TEKNİK GÖRÜNÜM
-                Test teknik.
-
-                KURUMSAL AKIŞ
-                AKD verisine göre IS %35.8 alıcı, YATIRIM FINANSMAN %33.1 satıcı.
-
-                TEMEL DURUM
-                Test temel.
-
-                RİSK
-                Test risk.
-
-                ÖZET
-                Test özet. [SKOR: NOTR]
-                """;
-
-        String stripped = VelzonAiBriefingPostGenerator.stripKurumsalAkis(reordered);
-
-        assertTrue(stripped.contains("TEKNİK GÖRÜNÜM"));
-        assertTrue(stripped.contains("TEMEL DURUM"));
-        assertTrue(stripped.contains("RİSK"));
-        assertTrue(stripped.contains("ÖZET"));
-        assertFalse(stripped.contains("KURUMSAL AKIŞ"));
-        assertFalse(stripped.contains("IS %35.8"));
-        assertFalse(stripped.contains("YATIRIM FINANSMAN"));
-    }
-
-    @Test
-    void stripKurumsalAkisDoesNotStopEarlyOnInlineHeaderWordMention() {
-        // KURUMSAL AKIŞ bölümünün gövdesinde "RİSK" kelimesi cümle içinde
-        // geçebilir (gerçek başlık satırı değil) — erken kesip institution
-        // verisini sızdırmamalı, gerçek RİSK BAŞLIK SATIRINA kadar gitmeli.
-        String withInlineRiskWord = """
-                TEKNİK GÖRÜNÜM
-                Test teknik.
-
-                KURUMSAL AKIŞ
-                AKD verisine göre IS %35.8 alıcı, kurumsal akışta RİSK iştahı arttı.
-                TURK EKONOMI BANKASI %47.3 en büyük alıcı.
-
-                RİSK
-                Test risk bölümü.
-
-                ÖZET
-                Test özet. [SKOR: NOTR]
-                """;
-
-        String stripped = VelzonAiBriefingPostGenerator.stripKurumsalAkis(withInlineRiskWord);
-
-        assertTrue(stripped.contains("TEKNİK GÖRÜNÜM"));
-        assertTrue(stripped.contains("RİSK\nTest risk bölümü"));
-        assertTrue(stripped.contains("ÖZET"));
-        assertFalse(stripped.contains("KURUMSAL AKIŞ"));
-        assertFalse(stripped.contains("IS %35.8"));
-        assertFalse(stripped.contains("TURK EKONOMI BANKASI"));
-    }
-
-    @Test
-    void stripKurumsalAkisWorksWhenSectionIsLast() {
-        // KURUMSAL AKIŞ metnin son bölümüyse (ardından hiçbir başlık
-        // gelmiyorsa) da metnin sonuna kadar temizlenmeli.
-        String kurumsalIsLast = """
-                TEKNİK GÖRÜNÜM
-                Test teknik.
-
-                KURUMSAL AKIŞ
-                AKD verisine göre IS %35.8 alıcı, TURK EKONOMI BANKASI %47.3 en büyük alıcı.
-                """;
-
-        String stripped = VelzonAiBriefingPostGenerator.stripKurumsalAkis(kurumsalIsLast);
-
-        assertTrue(stripped.contains("TEKNİK GÖRÜNÜM"));
-        assertFalse(stripped.contains("KURUMSAL AKIŞ"));
-        assertFalse(stripped.contains("IS %35.8"));
-        assertFalse(stripped.contains("TURK EKONOMI BANKASI"));
-    }
-
     static class FakeLlm implements LlmClient {
         String lastSystem;
         String lastUser;
@@ -165,16 +62,19 @@ class VelzonAiBriefingPostGeneratorTest {
     }
 
     @Test
-    void adaptNeverSendsKurumsalAkisTextToLlm() throws Exception {
+    void adaptSendsFullBriefingIncludingKurumsalAkisToLlm() throws Exception {
+        // Kullanıcının 2026-08-23 kararı: KURUMSAL AKIŞ (kurum adı + yüzde)
+        // artık postlarda da aynen paylaşılacak — bu yüzden LLM'e giden
+        // metinden ARTIK ÇIKARILMAMALI.
         FakeLlm llm = new FakeLlm();
         var generator = new VelzonAiBriefingPostGenerator(llm);
         var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
 
         generator.adapt(briefing);
 
-        assertFalse(llm.lastUser.contains("KURUMSAL AKIŞ"));
-        assertFalse(llm.lastUser.contains("IS %35.8"));
-        assertFalse(llm.lastUser.contains("TURK EKONOMI BANKASI"));
+        assertTrue(llm.lastUser.contains("KURUMSAL AKIŞ"));
+        assertTrue(llm.lastUser.contains("IS %35.8"));
+        assertTrue(llm.lastUser.contains("TURK EKONOMI BANKASI"));
     }
 
     @Test

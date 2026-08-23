@@ -7,35 +7,20 @@ import com.videogenerator.api.LlmJson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /**
  * Django'nun servis-seviyeli AI Brifing uç noktasından ({@link VelzonBriefingClient})
  * gelen 6 bölümlü ham metni, üç platform için kısaltılmış/uyarlanmış
  * postlara dönüştürür.
  *
- * KRİTİK: KURUMSAL AKIŞ bölümü (kurum isimleri + yüzdeler — Velzon'un
- * Professional üyelere özel, ücretli verisi) LLM'e METİN SEVİYESİNDE hiç
- * gösterilmez ({@link #stripKurumsalAkis}) — promptla "kullanma" demek
- * yerine, veriyi LLM'in görüş alanından tamamen çıkarmak, "unutup
- * kullanma" riskini sıfırlar. Bu, kullanıcının açık kararı: ücretli
- * kurumsal akış verisi sosyal medyada ücretsiz paylaşılmayacak.
+ * KURUMSAL AKIŞ bölümü (kurum isimleri + yüzdeler) dahil, ham metnin
+ * TAMAMI LLM'e verilir — kullanıcının 2026-08-23 tarihli açık kararı:
+ * bu veri artık sosyal medya postlarında da kurum adı + yüzde olarak
+ * aynen paylaşılacak (önceki oturumda bu bölüm bilinçli olarak
+ * çıkarılıyordu; karar değişti).
  */
 public class VelzonAiBriefingPostGenerator {
     private static final Logger logger = LoggerFactory.getLogger(VelzonAiBriefingPostGenerator.class);
     private static final int MAX_X_LEN = 280;
-
-    // KURUMSAL AKIŞ başlığından, Django'nun sabit 6 bölümlük şablonundaki
-    // DİĞER bölüm başlıklarından HANGİSİ önce gelirse ona kadar (sıra
-    // önemli değil — RİSK'e hardcode edilmiş DEĞİL, çünkü Django'nun bölüm
-    // sırası bu kod tarafından kontrol edilmiyor) veya metnin sonuna kadar
-    // olan bloğu (başlık dahil) siler. DOTALL: içerik birden fazla satıra
-    // yayılır. KURUMSAL AKIŞ son bölümse (hiçbiri sonrasında gelmiyorsa)
-    // metnin sonuna (\z) kadar temizlenir — asla ham bırakılmaz (fail-closed).
-    private static final Pattern KURUMSAL_AKIS_BLOCK = Pattern.compile(
-            "KURUMSAL AKIŞ\\s*.*?(?=\\n\\s*(?:TEKNİK GÖRÜNÜM|TEMEL DURUM|KONSENS[UÜ]S|RİSK|ÖZET)\\b|\\z)",
-            Pattern.DOTALL);
 
     private static final String SYSTEM = """
             You adapt a Turkish AI-generated stock analysis (from Velzon, a BIST
@@ -50,6 +35,15 @@ public class VelzonAiBriefingPostGenerator {
               görünüm olumsuz" / "teknik görünüm olumlu" / "teknik görünüm
               nötr"), never repeat the raw tag or an imperative buy/sell word.
             - NEVER fabricate numbers not present in the source text.
+            - The source may include a "KURUMSAL AKIŞ" (institutional flow)
+              section listing specific institution names with buy/sell
+              percentages (e.g. "AKD'de IS %35.8 alıcı, YATIRIM FINANSMAN
+              %33.1 satıcı"). Include this verbatim — institution names AND
+              percentages, not summarized away or genericized — in
+              "instagramCaption"/"facebookCaption" whenever the source has
+              it. For "x", include it only if it fits within the 280-char
+              budget; if not, prioritize the technical/summary content for
+              "x" and let the longer captions carry the institutional detail.
             - Each post must end with a call-to-action driving to Velzon's
               terminal: something like "Daha fazla veri için Velzon'da
               https://www.velzon.tr/terminal/ sayfasını inceleyin." (Turkish,
@@ -78,34 +72,14 @@ public class VelzonAiBriefingPostGenerator {
         this.llm = llm;
     }
 
-    /**
-     * KURUMSAL AKIŞ bölümünü (başlık dahil) metinden çıkarır; yoksa metni
-     * değiştirmeden döner. Fail-closed: çıkarım sonrası metinde hâlâ
-     * "KURUMSAL AKIŞ" geçiyorsa (beklenmedik format — regex temizleyemedi)
-     * sessizce devam ETMEZ, IllegalStateException fırlatır — ücretli
-     * kurumsal veri LLM'e/sosyal medyaya asla belirsiz bir durumda sızmaz.
-     */
-    static String stripKurumsalAkis(String text) {
-        String stripped = KURUMSAL_AKIS_BLOCK.matcher(text).replaceAll("");
-        if (stripped.contains("KURUMSAL AKIŞ")) {
-            throw new IllegalStateException(
-                    "KURUMSAL AKIŞ bölümü metinden temizlenemedi (beklenmeyen format) — "
-                            + "ücretli kurumsal akış verisinin sızmasını önlemek için bu "
-                            + "brifing turu atlanıyor");
-        }
-        return stripped;
-    }
-
     public AdaptedContent adapt(VelzonBriefingClient.Briefing briefing) throws Exception {
-        String safeText = stripKurumsalAkis(briefing.text());
-
         String user = String.format("""
                 Sembol: %s (zaman dilimi: %s)
 
                 --- ANALİZ METNİ BAŞLIYOR ---
                 %s
                 --- ANALİZ METNİ BİTTİ ---
-                """, briefing.symbol(), briefing.timeframe(), safeText);
+                """, briefing.symbol(), briefing.timeframe(), briefing.text());
 
         String raw = LlmJson.strip(llm.complete(SYSTEM, user));
         JsonObject resp;
