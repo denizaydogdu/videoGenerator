@@ -21,9 +21,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Localhost-only review console. Thin HTTP layer over {@link JobService};
- * all domain rules live there. Binds to 127.0.0.1 exclusively — there is
- * no authentication, this is a single-user local tool.
+ * Localhost-only review console (nginx bunu prod'da `shorts.velzon.tr`
+ * altında herkese açık olarak reverse-proxy'ler). Thin HTTP layer over
+ * {@link JobService}; all domain rules live there. Binds to 127.0.0.1
+ * exclusively. HTTP Basic Auth opsiyonel — bkz. {@link #withAuth}; hiç
+ * çağrılmazsa (yerel geliştirme varsayılanı) kimlik doğrulaması YOK.
  */
 public class BackofficeServer {
     private static final Logger logger = LoggerFactory.getLogger(BackofficeServer.class);
@@ -168,6 +170,22 @@ public class BackofficeServer {
         return this;
     }
 
+    private String authUsername; // opsiyonel — boşsa auth devre dışı (yerel geliştirme)
+    private String authPassword;
+
+    /**
+     * HTTP Basic Auth etkinleştirir — ikisi de dolu verilmezse (varsayılan)
+     * sunucu eskisi gibi kimlik doğrulamasız kalır (yerel `serve` kullanımı
+     * bozulmaz). Prod'da (`shorts.velzon.tr`, nginx arkasında ama herkese
+     * açık) etkinleştirilmesi önerilir — gerçek yayın tetikleyicileri ve
+     * bütçe tüketen aksiyonlar içeriyor.
+     */
+    public BackofficeServer withAuth(String username, String password) {
+        this.authUsername = username;
+        this.authPassword = password;
+        return this;
+    }
+
     private HttpServer httpServer;
     private java.util.concurrent.ExecutorService executor;
 
@@ -186,14 +204,44 @@ public class BackofficeServer {
     /** @return the actual listening port (useful when constructed with 0) */
     public int start() throws IOException {
         httpServer = HttpServer.create(new InetSocketAddress("127.0.0.1", requestedPort), 0);
-        httpServer.createContext("/api", this::handleApi);
-        httpServer.createContext("/", this::handleStatic);
+        var apiContext = httpServer.createContext("/api", this::handleApi);
+        var staticContext = httpServer.createContext("/", this::handleStatic);
+        if (authUsername != null && !authUsername.isBlank()
+                && authPassword != null && !authPassword.isBlank()) {
+            com.sun.net.httpserver.Authenticator authenticator = buildAuthenticator();
+            apiContext.setAuthenticator(authenticator);
+            staticContext.setAuthenticator(authenticator);
+            logger.info("Backoffice HTTP Basic Auth enabled");
+        } else {
+            logger.warn("Backoffice auth NOT configured — server is UNPROTECTED "
+                    + "(backoffice.auth.username/password empty)");
+        }
         executor = java.util.concurrent.Executors.newFixedThreadPool(4);
         httpServer.setExecutor(executor);
         httpServer.start();
         int port = httpServer.getAddress().getPort();
         logger.info("Backoffice listening on http://127.0.0.1:{}", port);
         return port;
+    }
+
+    private com.sun.net.httpserver.Authenticator buildAuthenticator() {
+        return new com.sun.net.httpserver.BasicAuthenticator("shorts-backoffice") {
+            @Override
+            public boolean checkCredentials(String user, String pwd) {
+                // Sabit-zamanlı karşılaştırma — timing attack'e karşı (Django
+                // tarafındaki hmac.compare_digest ile aynı prensip). "&" (kısa
+                // devre YOK) kasıtlı: "&&" olsaydı yanlış kullanıcı adında
+                // şifre hiç karşılaştırılmaz, bu da kullanıcı adının doğru
+                // olup olmadığını zamanlamadan sızdırabilirdi.
+                boolean userMatch = java.security.MessageDigest.isEqual(
+                        authUsername.getBytes(StandardCharsets.UTF_8),
+                        user.getBytes(StandardCharsets.UTF_8));
+                boolean passMatch = java.security.MessageDigest.isEqual(
+                        authPassword.getBytes(StandardCharsets.UTF_8),
+                        pwd.getBytes(StandardCharsets.UTF_8));
+                return userMatch & passMatch;
+            }
+        };
     }
 
     public void stop() {

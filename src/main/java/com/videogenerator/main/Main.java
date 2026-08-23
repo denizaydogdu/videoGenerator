@@ -721,7 +721,9 @@ public class Main {
 
             var server = new com.videogenerator.web.BackofficeServer(
                     service, launcher, publishLauncher, config.getBackofficePort())
-                    .withStats(buildStatsCollector(config));
+                    .withStats(buildStatsCollector(config))
+                    .withAuth(config.get("backoffice.auth.username", ""),
+                            config.get("backoffice.auth.password", ""));
 
             // Herkese açık, kimlik doğrulama gerektirmeyen bir site — X/Instagram/
             // YouTube üretimlerinden bağımsız olarak her zaman kurulur, çünkü
