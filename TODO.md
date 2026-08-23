@@ -445,13 +445,18 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       `backoffice.port=8096` eklendi.
 - [x] Doğrulama: `/api/jobs` → `[]`, `/api/pinterest/batches` → `[]`,
       `/api/velzon/batches` → 503 (x.client.id boş, beklenen).
-- [ ] **TEKNİK BORÇ — kimlik doğrulama yok:** kullanıcının açık talimatıyla
-      auth eklenmedi ("login vb koyma ilerleyen zamanlarda teknik borç
-      olarak ekleriz", 2026-08-11). Backoffice şu an URL'yi bilen herkese
-      açık — TikTok/Pinterest/Velzon X'e gerçek içerik yayınlayabilir,
-      OpenAI/ElevenLabs bütçesi tüketebilir. Cloudflare Access (email/Google
-      login duvarı, kod değişikliği gerektirmez) en hızlı çözüm — ne zaman
-      gündeme gelirse onunla başla.
+- [x] **TEKNİK BORÇ KAPANDI — HTTP Basic Auth eklendi** ✅ (2026-08-23) —
+      kullanıcı "teknik borçları yapalım" dedi, uygulama-içi HTTP Basic
+      Auth tercih edildi (Cloudflare Access değil — o kullanıcının kendi
+      dashboard'undan yapması gerekirdi). `BackofficeServer.withAuth(user,
+      pass)` — ikisi de config'te dolu değilse (yerel `serve` varsayılanı)
+      sunucu eskisi gibi kimlik doğrulamasız kalır. Sabit-zamanlı
+      karşılaştırma (`MessageDigest.isEqual`, kısa devre yok — review'da
+      bulunan bir nüans düzeltildi). Review'da bulunan test boşluğu
+      (mutating POST route'ların da korunduğu doğrulanmamıştı) kapatıldı.
+      Prod'a deploy edildi, canlı doğrulandı (kimlik bilgisi olmadan 401,
+      doğru bilgiyle 200). Kimlik bilgileri `config/application.properties`'te
+      (prod sunucuda, gitignored) — kullanıcı adı `velzon`.
 - [ ] `output/pinterest/batch1` (zaten manuel yayınlanmış 10 pin) ve eski
       video job'ları sunucuya kopyalanmadı — dashboard bundan sonra üretilen
       yeni işleri gösterecek, geçmiş sıfırdan. İstenirse sonradan senkronize
