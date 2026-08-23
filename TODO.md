@@ -543,6 +543,46 @@ hiç Facebook Sayfası yoktu, sıfırdan açıldı.
 artık uçtan uca canlı ve doğrulanmış — Velzon çoklu-platform genişlemesi
 tamamen tamamlandı.**
 
+## 1️⃣5️⃣ Velzon AI Brifing — kod tamamlandı, prod'a deploy edildi ✅ (2026-08-23)
+
+Kullanıcının isteği: terminal sayfasındaki AI Brifing özelliğinin ürettiği
+gerçek hisse analizini X/Instagram/Facebook'a BIST saatleri içinde günde
+5 kez **tam otomatik** (insan onayı YOK — bilinçli karar) postla. İçerik
+biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
+
+- [x] **Django tarafı** ✅ — yeni senkron `GET /api/ai/symbol-briefing/service/`
+      uç noktası, ayrı `AI_BRIEFING_SERVICE_API_KEY` ile X-API-KEY
+      doğrulaması, global günlük tavan. 12 test + 411/411 tam regresyon.
+      Sadece commit+push yapıldı (`b8dcf8dc`, `feat/ai-agent-tool-calling`
+      dalı) — kullanıcının açık talimatıyla deploy'u kendisi Jenkins'ten
+      yaptı.
+- [x] **Java tarafı — TDD ile 8 parça** ✅ — `BistTradingCalendar`
+      (Scyborsa'nın gerçek prod `SessionHolidays` enum'ından uyarlandı),
+      `VelzonBist100SymbolPool` (102 gerçek sembol), `VelzonBriefingClient`,
+      `VelzonAiBriefingPostGenerator` (KURUMSAL AKIŞ bölümünü LLM'e hiç
+      göstermeden çıkarır), `XApiClient` görsel-postlama desteği,
+      `VelzonAiBriefingJob` (3 platforma bağımsız try/catch),
+      `VelzonAiBriefingScheduler` (günde 5 sabit saat, BIST saatleri),
+      `BackofficeServer` görsel servisi, `Main.java` wiring.
+- [x] **İki bağımsız adversarial review — kritik bulgu düzeltildi** ✅ —
+      KURUMSAL AKIŞ temizleme regex'i RİSK başlığına hardcode bağımlıydı
+      ve fail-open çalışıyordu (bölüm sırası değişse veya metin içinde
+      "RİSK" kelimesi geçse ücretli kurumsal veri sızabilirdi). Regex
+      artık 6 sabit bölüm başlığından hangisi önce gelirse ona göre
+      çalışıyor (sıra bağımsız), temizlik sonrası iz kalırsa fail-closed
+      exception fırlatıyor. Ayrıca görseller için 7 günlük saklama
+      süpürmesi eklendi (disk sızıntısı riski). 318 → 332 test.
+- [x] **Prod'a deploy edildi ve canlı doğrulandı** ✅ (2026-08-23) —
+      `shorts.velzon.tr` (shorts-backoffice servisi), zamanlayıcı armed
+      (ilk tetikleme: ertesi gün 10:30 İstanbul saati), mevcut 5 Velzon
+      bölümü de bozulmadan çalışmaya devam ediyor.
+- [ ] **Bekleyen:** Django Jenkins deploy'u kullanıcı tarafından henüz
+      tamamlanmadı — tamamlanana kadar zamanlanmış her tetiklemede
+      `fetchBriefing` hatayla başarısız olur (loglanır, post atılmaz,
+      zararsız). Deploy tamamlanınca bir sonraki zamanlanmış turda ilk
+      gerçek otomatik post canlıya çıkacak — henüz kullanıcı tarafından
+      gözle doğrulanmadı.
+
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 
 - [x] Pinterest işletme hesabı kuruldu (@denizaydogdu, marka adı "Small
