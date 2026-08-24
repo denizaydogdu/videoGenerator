@@ -180,4 +180,46 @@ class VelzonAiBriefingPostGeneratorTest {
 
         assertThrows(IllegalStateException.class, () -> generator.adapt(briefing));
     }
+
+    @Test
+    void adaptThrowsWhenXTextDoesNotMentionSymbol() {
+        // 2026-08-24 canlı bug: KURUMSAL AKIŞ odağı istenince LLM sembolü
+        // hiç yazmadan attı — okuyucu hangi hisseden bahsedildiğini bilemedi.
+        FakeLlm llm = new FakeLlm();
+        llm.response = "{\"x\":\"Kurumsal akış: BANK OF AMERICA %40.8, +218.064 lot. "
+                + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
+                + "\"instagramCaption\":\"THYAO analizi burada.\","
+                + "\"facebookCaption\":\"THYAO analizi burada.\",\"imagePrompt\":\"p\"}";
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        assertThrows(IllegalStateException.class, () -> generator.adapt(briefing));
+    }
+
+    @Test
+    void adaptThrowsWhenCaptionDoesNotMentionSymbol() {
+        FakeLlm llm = new FakeLlm();
+        llm.response = "{\"x\":\"THYAO teknik görünümde zayıf. "
+                + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
+                + "\"instagramCaption\":\"Kurumsal akış: BANK OF AMERICA %40.8 alıcı.\","
+                + "\"facebookCaption\":\"THYAO analizi burada.\",\"imagePrompt\":\"p\"}";
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        assertThrows(IllegalStateException.class, () -> generator.adapt(briefing));
+    }
+
+    @Test
+    void adaptAcceptsSymbolWithTurkishSuffix() throws Exception {
+        // "THYAO'nun" gibi doğal ek almış hâller de sembolü içerir sayılmalı.
+        FakeLlm llm = new FakeLlm();
+        llm.response = "{\"x\":\"THYAO'nun teknik görünümü zayıf. "
+                + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
+                + "\"instagramCaption\":\"THYAO'da kurumsal akış güçlü.\","
+                + "\"facebookCaption\":\"THYAO'daki teknik tablo.\",\"imagePrompt\":\"p\"}";
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        assertDoesNotThrow(() -> generator.adapt(briefing));
+    }
 }

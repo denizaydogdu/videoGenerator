@@ -49,6 +49,12 @@ public class VelzonAiBriefingPostGenerator {
               mention the other one second. Never skip the requested focus
               to make room for the other — the requested focus always wins
               the limited space.
+            - EVERY post ("x", "instagramCaption", "facebookCaption") MUST
+              explicitly state the stock symbol (given in the user message
+              as "Sembol: X") — a reader must know which stock this is
+              about at a glance. NEVER omit it to save space, regardless of
+              which content leads "x". Natural Turkish suffix forms are fine
+              ("THYAO'nun", "THYAO'da").
             - Each post must end with a call-to-action driving to Velzon's
               terminal: something like "Daha fazla veri için Velzon'da
               https://www.velzon.tr/terminal/ sayfasını inceleyin." (Turkish,
@@ -155,11 +161,18 @@ public class VelzonAiBriefingPostGenerator {
             throw new IllegalStateException(
                     "X text exceeds " + MAX_X_LEN + " chars (" + xText.length() + "): " + xText);
         }
+        String instagramCaption = requireField(resp, "instagramCaption");
+        String facebookCaption = requireField(resp, "facebookCaption");
+
+        // Prompt talimatı yeterli olmayabilir (bkz. 2026-08-24: KURUMSAL AKIŞ
+        // odağı istenince LLM sembolü hiç yazmadan attı) — sessizce
+        // yayınlamak yerine o turu atlamak daha güvenli.
+        requireSymbolMentioned(xText, "x", briefing.symbol());
+        requireSymbolMentioned(instagramCaption, "instagramCaption", briefing.symbol());
+        requireSymbolMentioned(facebookCaption, "facebookCaption", briefing.symbol());
 
         AdaptedContent result = new AdaptedContent(
-                xText,
-                requireField(resp, "instagramCaption"),
-                requireField(resp, "facebookCaption"),
+                xText, instagramCaption, facebookCaption,
                 requireField(resp, "imagePrompt"));
         logger.info("Adapted AI briefing for {} into 3-platform content", briefing.symbol());
         return result;
@@ -170,5 +183,13 @@ public class VelzonAiBriefingPostGenerator {
             throw new IllegalStateException("LLM response missing required field '" + field + "'");
         }
         return o.get(field).getAsString();
+    }
+
+    /** Okuyucu hangi hisseden bahsedildiğini bilmeli — sessizce eksik geçilmez. */
+    private static void requireSymbolMentioned(String text, String field, String symbol) {
+        if (!text.toUpperCase(java.util.Locale.ROOT).contains(symbol.toUpperCase(java.util.Locale.ROOT))) {
+            throw new IllegalStateException(
+                    "LLM response field '" + field + "' does not mention symbol '" + symbol + "': " + text);
+        }
     }
 }
