@@ -457,6 +457,25 @@ Gerçekçi yol otomatik entegrasyon değil, manuel bir "bulgu ekle" arayüzü
       Prod'a deploy edildi, canlı doğrulandı (kimlik bilgisi olmadan 401,
       doğru bilgiyle 200). Kimlik bilgileri `config/application.properties`'te
       (prod sunucuda, gitignored) — kullanıcı adı `velzon`.
+- [x] **CANLI REGRESYON + DÜZELTME: auth, Instagram/Facebook'un görsel
+      çekimini bloklamış** ✅ (2026-08-24 sabah, 10:30 turunda ortaya çıktı) —
+      blanket auth `/api`'nin TAMAMINI koruyordu, ama Instagram/Facebook
+      Content Publishing API'si postlamadan önce görseli kendi
+      sunucularından kimlik bilgisi OLMADAN URL'den çekiyor. Sonuç: X'e
+      post gitti (PETKM, `x.com/i/status/2091790444900254003`), ama
+      Instagram/Facebook "medya indirilemedi" hatasıyla reddetti — sadece
+      yeni AI Brifing'i değil, Pinterest/Velzon Instagram/Velzon
+      Facebook'un mevcut yayın akışlarını da etkileyen bir regresyon.
+      Hemen düzeltildi: auth artık `handleApi` içinde elle kontrol
+      ediliyor, public görsel route'ları hariç tutularak (aynı prefiks
+      altındaki liste/publish gibi yönetim aksiyonları hâlâ korumalı).
+      13 yeni test. Adversarial review ikinci bir gerçek bulgu buldu:
+      Pinterest'in görseli aslında base64 olarak gömdüğü (URL'den hiç
+      çekilmediği) için o route'un public listesinde olmaması gerekiyordu
+      — düzeltildi, Pinterest görseli artık yine auth'lu. Her iki hotfix
+      de aynı sabah prod'a deploy edildi, canlı doğrulandı. **Ders:** yeni
+      bir auth katmanı eklerken, dış servislerin (Meta vb.) sunucumuza
+      geri-çağrı/fetch yaptığı public route'lar mutlaka ayrıca haritalanmalı.
 - [ ] `output/pinterest/batch1` (zaten manuel yayınlanmış 10 pin) ve eski
       video job'ları sunucuya kopyalanmadı — dashboard bundan sonra üretilen
       yeni işleri gösterecek, geçmiş sıfırdan. İstenirse sonradan senkronize
