@@ -667,11 +667,18 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
 - [x] **X tweet'i artık bazen KURUMSAL AKIŞ'a öncelik veriyor** ✅
       (2026-08-24, 14:00 civarı) — kullanıcı canlı postları görünce fark
       etti: X her turda teknik özete öncelik veriyordu, kurumsal akış hiç
-      öne çıkmıyordu. `VelzonAiBriefingPostGenerator`'a her tur için
-      rastgele (%50) bir "x odağı" seçimi eklendi (KURUMSAL AKIŞ verisi
-      yoksa seçim ne olursa olsun teknik odağa zorla düşülür). 3 yeni
-      test, 343/343 tam regresyon. Prod'a deploy edildi (15:00 turundan
-      önce yetiştirildi).
+      öne çıkmıyordu. `VelzonAiBriefingPostGenerator`'a her tur için bir
+      "x odağı" seçimi eklendi (KURUMSAL AKIŞ verisi yoksa seçim ne
+      olursa olsun teknik odağa zorla düşülür). 3 yeni test, 343/343 tam
+      regresyon. Prod'a deploy edildi.
+- [x] **Düzeltme: bağımsız yazı-tura → kesin alternate** ✅ (2026-08-24,
+      hemen ardından) — kullanıcı haklı bir istatistik endişesi belirtti:
+      bağımsız %50'de günde 5 turun hepsinin şansla "teknik" çıkması
+      mümkündü (~%3 ihtimal). Seçici artık rastgele bir başlangıçtan
+      sonra KESİN alternate ediyor — arka arkaya iki kez aynı seçim asla
+      çıkmıyor. 1 yeni test (20 ardışık çağrı, hiç ardışık tekrar yok).
+      344/344 tam regresyon. Prod'a deploy edildi (15:00 turundan önce
+      yetiştirildi).
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 
