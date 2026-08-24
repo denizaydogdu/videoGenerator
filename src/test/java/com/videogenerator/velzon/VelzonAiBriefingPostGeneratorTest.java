@@ -257,4 +257,46 @@ class VelzonAiBriefingPostGeneratorTest {
         assertTrue(result.length() <= 2200, "sonuç 2200'ü aşıyor: " + result.length());
         assertTrue(result.contains("https://www.velzon.tr/terminal/"), "CTA linki yok");
     }
+
+    @Test
+    void adaptWithoutFramingNoteBehavesLikeBefore() throws Exception {
+        // Tek-parametreli adapt() eski davranışı korumalı — çerçeveleme yok.
+        FakeLlm llm = new FakeLlm();
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        generator.adapt(briefing);
+
+        assertFalse(llm.lastUser.contains("ÇERÇEVE:"));
+    }
+
+    @Test
+    void adaptWithFramingNotePassesItToLlmPrompt() throws Exception {
+        // 2026-08-24 yeni özellik: sabit endeks (XU100) için sabah/akşam
+        // özel çerçeveleme (güne başlarken / gün sonu) — LLM'e prompt'ta
+        // açıkça verilmeli, sessizce yok sayılmamalı.
+        FakeLlm llm = new FakeLlm();
+        llm.response = "{\"x\":\"XU100 güne başlarken görünüm. "
+                + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
+                + "\"instagramCaption\":\"XU100 güne başlarken detaylı görünüm.\","
+                + "\"facebookCaption\":\"XU100 güne başlarken detaylı görünüm.\"}";
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("XU100", "1G", FULL_BRIEFING.replace("THYAO", "XU100"));
+
+        generator.adapt(briefing, "GÜNE BAŞLARKEN (piyasa açılış öncesi) — henüz seans başlamadı.");
+
+        assertTrue(llm.lastUser.contains("ÇERÇEVE:"));
+        assertTrue(llm.lastUser.contains("GÜNE BAŞLARKEN"));
+    }
+
+    @Test
+    void adaptWithBlankFramingNoteOmitsFramingBlock() throws Exception {
+        FakeLlm llm = new FakeLlm();
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        generator.adapt(briefing, "  ");
+
+        assertFalse(llm.lastUser.contains("ÇERÇEVE:"));
+    }
 }

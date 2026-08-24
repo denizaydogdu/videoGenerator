@@ -61,6 +61,14 @@ public class VelzonAiBriefingPostGenerator {
               about at a glance. NEVER omit it to save space, regardless of
               which content leads "x". Natural Turkish suffix forms are fine
               ("THYAO'nun", "THYAO'da").
+            - If the user message includes a "ÇERÇEVE:" (framing) line, this
+              is a special-occasion post (e.g. a pre-market "start of day"
+              note or a post-close "end of day" summary for the BIST100
+              index) — open the post acknowledging that framing naturally
+              in Turkish (e.g. start with something like "Güne başlarken..."
+              or "Gün sonunda...") rather than writing a generic single-
+              stock analysis. If no "ÇERÇEVE:" line is present, write a
+              normal analysis post as usual.
             - Each post must end with a call-to-action driving to Velzon's
               terminal: something like "Daha fazla veri için Velzon'da
               https://www.velzon.tr/terminal/ sayfasını inceleyin." (Turkish,
@@ -135,6 +143,16 @@ public class VelzonAiBriefingPostGenerator {
     }
 
     public AdaptedContent adapt(VelzonBriefingClient.Briefing briefing) throws Exception {
+        return adapt(briefing, null);
+    }
+
+    /**
+     * @param framingNote sabah "güne başlarken" / akşam "gün sonu" gibi
+     *                     özel çerçeveleme için (bkz. 2026-08-24 XU100
+     *                     günlük özet işleri) — boş/null ise normal analiz
+     *                     postu yazılır, çerçeveleme talimatı eklenmez.
+     */
+    public AdaptedContent adapt(VelzonBriefingClient.Briefing briefing, String framingNote) throws Exception {
         boolean prioritizeInstitutionalForX = hasInstitutionalFlowData(briefing.text())
                 && xFocusChooser.get();
         String xFocusNote = prioritizeInstitutionalForX
@@ -143,16 +161,18 @@ public class VelzonAiBriefingPostGenerator {
                         + "kalırsa teknik özeti kısaca ekle."
                 : "Bu tur için \"x\" alanında ÖNCELİK TEKNİK GÖRÜNÜM özetinde olsun "
                         + "— önce o cümleyi yaz, yer kalırsa kurumsal akıştan kısaca bahset.";
+        String framingBlock = (framingNote == null || framingNote.isBlank())
+                ? "" : "ÇERÇEVE: " + framingNote + "\n\n";
 
         String user = String.format("""
                 Sembol: %s (zaman dilimi: %s)
 
                 %s
-
+                %s
                 --- ANALİZ METNİ BAŞLIYOR ---
                 %s
                 --- ANALİZ METNİ BİTTİ ---
-                """, briefing.symbol(), briefing.timeframe(), xFocusNote, briefing.text());
+                """, briefing.symbol(), briefing.timeframe(), xFocusNote, framingBlock, briefing.text());
 
         String raw = LlmJson.strip(llm.complete(SYSTEM, user));
         JsonObject resp;

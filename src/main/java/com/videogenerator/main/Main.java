@@ -46,6 +46,10 @@ public class Main {
                 case "velzon-youtube-auth" -> runVelzonYouTubeAuth();
                 case "velzon-tiktok-auth" -> runVelzonTiktokAuth(config);
                 case "velzon-ai-briefing-test" -> runVelzonAiBriefingTest(config);
+                case "velzon-ai-briefing-xu100-test" -> {
+                    requireArg(args, "velzon-ai-briefing-xu100-test requires: <morning|evening>");
+                    runVelzonXu100Test(args[1], config);
+                }
                 case "pinterest-batch" -> {
                     requireArg(args, "pinterest-batch requires: <count> <niche prompt...>");
                     if (args.length < 3) {
@@ -433,14 +437,27 @@ public class Main {
     }
 
     /**
-     * Velzon AI Brifing job'ını gerçek istemcilerle kurar — {@code serve}
-     * (scheduler'a bağlar) VE {@code velzon-ai-briefing-test} (tek seferlik
-     * manuel tetikleme) tarafından ortak kullanılır, tek bir kaynaktan wiring.
-     * X/Instagram/Facebook'un hepsi yapılandırılmamışsa (veya brifing anahtarı
-     * boşsa) {@code null} döner.
+     * Velzon AI Brifing işlerinin (rastgele hisse + XU100 sabah/akşam)
+     * ortak bileşenleri — X/Instagram/Facebook istemcileri, brifing
+     * istemcisi, içerik uyarlayıcı, terminal görsel istemcisi, çıktı
+     * dizini. Tek kaynaktan wiring, üç farklı job varyantı bunu paylaşır.
      */
-    private static com.videogenerator.velzon.VelzonAiBriefingJob buildVelzonAiBriefingJob(
-            Configuration config) {
+    private record VelzonAiBriefingComponents(
+            com.videogenerator.velzon.VelzonBriefingClient briefingClient,
+            com.videogenerator.velzon.VelzonAiBriefingPostGenerator contentGenerator,
+            com.videogenerator.velzon.VelzonTerminalImageClient terminalImageClient,
+            com.videogenerator.velzon.VelzonAiBriefingJob.XPoster xPoster,
+            com.videogenerator.velzon.VelzonAiBriefingJob.InstagramPoster instagramPoster,
+            com.videogenerator.velzon.VelzonAiBriefingJob.FacebookPoster facebookPoster,
+            java.nio.file.Path outputDir,
+            String publicBaseUrl) {
+    }
+
+    /**
+     * X/Instagram/Facebook'un hepsi yapılandırılmamışsa (veya brifing
+     * anahtarı boşsa) {@code null} döner.
+     */
+    private static VelzonAiBriefingComponents buildVelzonAiBriefingComponents(Configuration config) {
         String velzonBriefingApiKey = config.get("velzon.briefing.api.key", "");
         var xClient = buildXApiClient(config);
         var velzonInstagramClient = buildVelzonInstagramClient(config);
@@ -494,16 +511,65 @@ public class Main {
                 new com.videogenerator.velzon.VelzonTerminalImageHttp(),
                 config.get("velzon.briefing.base.url", "https://www.velzon.tr"));
 
+        return new VelzonAiBriefingComponents(
+                velzonBriefingClient, velzonBriefingGenerator, velzonTerminalImageClient,
+                velzonBriefingXPoster, velzonBriefingIgPoster, velzonBriefingFbPoster,
+                velzonBriefingImagesDir,
+                config.get("velzon.briefing.public.base.url", "https://shorts.velzon.tr"));
+    }
+
+    /**
+     * Velzon AI Brifing job'ını (rastgele BIST100 hissesi, günde 5x BIST
+     * saatleri içinde) gerçek istemcilerle kurar — {@code serve} (scheduler'a
+     * bağlar) VE {@code velzon-ai-briefing-test} (tek seferlik manuel
+     * tetikleme) tarafından ortak kullanılır. Yapılandırılmamışsa {@code null}
+     * döner.
+     */
+    private static com.videogenerator.velzon.VelzonAiBriefingJob buildVelzonAiBriefingJob(
+            Configuration config) {
+        var c = buildVelzonAiBriefingComponents(config);
+        if (c == null) {
+            return null;
+        }
         return new com.videogenerator.velzon.VelzonAiBriefingJob.Builder()
-                .briefingClient(velzonBriefingClient)
-                .contentGenerator(velzonBriefingGenerator)
-                .terminalImageClient(velzonTerminalImageClient)
-                .xPoster(velzonBriefingXPoster)
-                .instagramPoster(velzonBriefingIgPoster)
-                .facebookPoster(velzonBriefingFbPoster)
-                .outputDir(velzonBriefingImagesDir)
-                .publicBaseUrl(config.get("velzon.briefing.public.base.url",
-                        "https://shorts.velzon.tr"))
+                .briefingClient(c.briefingClient())
+                .contentGenerator(c.contentGenerator())
+                .terminalImageClient(c.terminalImageClient())
+                .xPoster(c.xPoster())
+                .instagramPoster(c.instagramPoster())
+                .facebookPoster(c.facebookPoster())
+                .outputDir(c.outputDir())
+                .publicBaseUrl(c.publicBaseUrl())
+                .build();
+    }
+
+    /**
+     * XU100 (BIST100 endeksi) günlük özet job'ı — 2026-08-24 kullanıcı
+     * isteği: sabah 09:30 "güne başlarken" ve akşam 19:00 "gün sonu" olmak
+     * üzere sabit sembollü, günde 1x tetiklenen ayrı bir iş türü. Rastgele-
+     * hisse işinden farklı olarak {@code tradingTimeCheck} seans saatine
+     * değil {@link com.videogenerator.velzon.BistTradingCalendar#isTradingDay}'e
+     * bağlanır — 09:30 seans açılışından ÖNCE, 19:00 ise kapanıştan SONRA,
+     * ikisi de "seans açık mı" kontrolünden asla geçemezdi.
+     */
+    private static com.videogenerator.velzon.VelzonAiBriefingJob buildVelzonXu100Job(
+            Configuration config, String framingNote) {
+        var c = buildVelzonAiBriefingComponents(config);
+        if (c == null) {
+            return null;
+        }
+        return new com.videogenerator.velzon.VelzonAiBriefingJob.Builder()
+                .briefingClient(c.briefingClient())
+                .contentGenerator(c.contentGenerator())
+                .terminalImageClient(c.terminalImageClient())
+                .xPoster(c.xPoster())
+                .instagramPoster(c.instagramPoster())
+                .facebookPoster(c.facebookPoster())
+                .outputDir(c.outputDir())
+                .publicBaseUrl(c.publicBaseUrl())
+                .symbolSupplier(() -> "XU100")
+                .framingNote(framingNote)
+                .tradingTimeCheck(com.videogenerator.velzon.BistTradingCalendar::isTradingDay)
                 .build();
     }
 
@@ -515,7 +581,42 @@ public class Main {
      * doğrulama için (bkz. TODO.md "1️⃣5️⃣ Velzon AI Brifing").
      */
     private static void runVelzonAiBriefingTest(Configuration config) {
-        var job = buildVelzonAiBriefingJob(config);
+        runVelzonAiBriefingTestJob(buildVelzonAiBriefingJob(config),
+                "Velzon AI Brifing — MANUEL TEST TETİKLEMESİ");
+    }
+
+    /**
+     * {@code velzon-ai-briefing-xu100-test <morning|evening>} CLI komutu —
+     * 2026-08-24 yeni özellik: XU100 günlük özet işini (sabah "güne
+     * başlarken" veya akşam "gün sonu" çerçevelemesiyle) BIST işlem-günü
+     * kontrolünü atlayarak elle tetikler. Aynı şekilde dry-run DEĞİLDİR.
+     */
+    private static void runVelzonXu100Test(String variant, Configuration config) {
+        String framingNote;
+        String label;
+        switch (variant) {
+            case "morning" -> {
+                framingNote = "GÜNE BAŞLARKEN (piyasa açılış öncesi, 09:30) — henüz seans "
+                        + "başlamadı, önceki kapanışa göre genel görünüm ve bugün izlenecek "
+                        + "seviyeler.";
+                label = "Velzon XU100 SABAH — MANUEL TEST TETİKLEMESİ";
+            }
+            case "evening" -> {
+                framingNote = "GÜN SONU (piyasa kapanışı sonrası, 19:00) — bugünkü seansın "
+                        + "genel özeti ve yarına yönelik görünüm.";
+                label = "Velzon XU100 AKŞAM — MANUEL TEST TETİKLEMESİ";
+            }
+            default -> {
+                System.out.println("ERROR: usage: velzon-ai-briefing-xu100-test <morning|evening>");
+                System.exit(1);
+                return;
+            }
+        }
+        runVelzonAiBriefingTestJob(buildVelzonXu100Job(config, framingNote), label);
+    }
+
+    private static void runVelzonAiBriefingTestJob(
+            com.videogenerator.velzon.VelzonAiBriefingJob job, String label) {
         if (job == null) {
             System.out.println("ERROR: Velzon AI Briefing not configured "
                     + "(velzon.briefing.api.key empty, or X/Instagram/Facebook not all configured)");
@@ -523,15 +624,15 @@ public class Main {
             return;
         }
         System.out.println("========================================");
-        System.out.println("Velzon AI Brifing — MANUEL TEST TETİKLEMESİ");
-        System.out.println("BIST saat kontrolü ATLANDI. Bu GERÇEK bir post üretip");
+        System.out.println(label);
+        System.out.println("BIST saat/gün kontrolü ATLANDI. Bu GERÇEK bir post üretip");
         System.out.println("X/Instagram/Facebook hesaplarına GERÇEKTEN yayınlayacak.");
         System.out.println("========================================");
         try {
             job.runOnceForTesting();
             System.out.println("Tamamlandı — X/Instagram/Facebook loglarını/hesaplarını kontrol edin.");
         } catch (Exception e) {
-            logger.error("velzon-ai-briefing-test failed", e);
+            logger.error("velzon-ai-briefing test failed", e);
             System.out.println("ERROR: " + e.getMessage());
             System.exit(1);
         }
@@ -912,16 +1013,38 @@ public class Main {
                         + " — section disabled");
             }
 
-            var velzonAiBriefingSchedulerHolder =
-                    new com.videogenerator.velzon.VelzonAiBriefingScheduler[1];
+            var velzonAiBriefingSchedulers =
+                    new java.util.ArrayList<com.videogenerator.velzon.VelzonAiBriefingScheduler>();
             var velzonAiBriefingJob = buildVelzonAiBriefingJob(config);
             if (velzonAiBriefingJob != null) {
                 server.withVelzonAiBriefing(java.nio.file.Path.of(
                         config.get("velzon.briefing.output.dir", "output/velzon-ai-briefing")));
-                velzonAiBriefingSchedulerHolder[0] =
-                        new com.videogenerator.velzon.VelzonAiBriefingScheduler(velzonAiBriefingJob);
-                velzonAiBriefingSchedulerHolder[0].start();
+                var scheduler = new com.videogenerator.velzon.VelzonAiBriefingScheduler(velzonAiBriefingJob);
+                scheduler.start();
+                velzonAiBriefingSchedulers.add(scheduler);
                 logger.info("Velzon AI Brifing scheduler enabled (günde 5x, BIST saatleri)");
+
+                // XU100 (BIST100 endeksi) günlük özet — 2026-08-24: sabah
+                // 09:30 "güne başlarken" + akşam 19:00 "gün sonu", ikisi de
+                // seans saatleri DIŞINDA (açılıştan önce/kapanıştan sonra),
+                // bu yüzden ayrı job + tradingTimeCheck=isTradingDay kullanır.
+                var xu100MorningJob = buildVelzonXu100Job(config,
+                        "GÜNE BAŞLARKEN (piyasa açılış öncesi, 09:30) — henüz seans "
+                                + "başlamadı, önceki kapanışa göre genel görünüm ve bugün "
+                                + "izlenecek seviyeler.");
+                var morningScheduler = new com.videogenerator.velzon.VelzonAiBriefingScheduler(
+                        xu100MorningJob, java.util.List.of(java.time.LocalTime.of(9, 30)));
+                morningScheduler.start();
+                velzonAiBriefingSchedulers.add(morningScheduler);
+
+                var xu100EveningJob = buildVelzonXu100Job(config,
+                        "GÜN SONU (piyasa kapanışı sonrası, 19:00) — bugünkü seansın "
+                                + "genel özeti ve yarına yönelik görünüm.");
+                var eveningScheduler = new com.videogenerator.velzon.VelzonAiBriefingScheduler(
+                        xu100EveningJob, java.util.List.of(java.time.LocalTime.of(19, 0)));
+                eveningScheduler.start();
+                velzonAiBriefingSchedulers.add(eveningScheduler);
+                logger.info("Velzon XU100 günlük özet scheduler'ları enabled (09:30 + 19:00, BIST işlem günleri)");
             } else {
                 logger.info("Velzon AI Brifing not configured (velzon.briefing.api.key empty, "
                         + "or X/Instagram/Facebook not all configured) — section disabled");
@@ -937,9 +1060,7 @@ public class Main {
                 velzonExecutor.shutdownNow();
                 velzonInstagramExecutor.shutdownNow();
                 velzonYoutubeExecutor.shutdownNow();
-                if (velzonAiBriefingSchedulerHolder[0] != null) {
-                    velzonAiBriefingSchedulerHolder[0].stop();
-                }
+                velzonAiBriefingSchedulers.forEach(com.videogenerator.velzon.VelzonAiBriefingScheduler::stop);
             }));
 
             System.out.println("========================================");
@@ -1046,6 +1167,7 @@ public class Main {
         System.out.println("  velzon-youtube-auth  - One-time Velzon YouTube channel OAuth (opens browser)");
         System.out.println("  velzon-tiktok-auth   - One-time Velzon TikTok (@velzon_tr) OAuth authorization");
         System.out.println("  velzon-ai-briefing-test - Manually trigger ONE real AI Briefing post (bypasses BIST-hours gate — NOT a dry run)");
+        System.out.println("  velzon-ai-briefing-xu100-test <morning|evening> - Manually trigger ONE real XU100 daily-digest post (bypasses trading-day gate — NOT a dry run)");
         System.out.println("  pinterest-batch <count> <niche prompt...> - Generate Pinterest pin images+copy (also available in backoffice)");
         System.out.println("  help                 - Show this help");
     }

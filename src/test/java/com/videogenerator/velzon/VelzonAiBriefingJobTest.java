@@ -14,22 +14,26 @@ class VelzonAiBriefingJobTest {
 
     static class FakeBriefingClient extends VelzonBriefingClient {
         int calls = 0;
+        String lastSymbol;
         FakeBriefingClient() { super(null, "https://www.velzon.tr", "key"); }
 
         @Override
         public Briefing fetchBriefing(String symbol, String timeframe) {
             calls++;
+            lastSymbol = symbol;
             return new Briefing(symbol, timeframe, "TEKNİK GÖRÜNÜM\nTest.\n\nÖZET\nTest. [SKOR: NOTR]");
         }
     }
 
     static class FakePostGenerator extends VelzonAiBriefingPostGenerator {
         int calls = 0;
+        String lastFramingNote;
         FakePostGenerator() { super(null); }
 
         @Override
-        public AdaptedContent adapt(VelzonBriefingClient.Briefing briefing) {
+        public AdaptedContent adapt(VelzonBriefingClient.Briefing briefing, String framingNote) {
             calls++;
+            lastFramingNote = framingNote;
             return new AdaptedContent(
                     briefing.symbol() + " kısa özet. https://www.velzon.tr/terminal/",
                     briefing.symbol() + " Instagram özeti.",
@@ -239,5 +243,59 @@ class VelzonAiBriefingJobTest {
                 .publicBaseUrl("https://shorts.velzon.tr");
 
         assertDoesNotThrow(b.build()::run);
+    }
+
+    @Test
+    void symbolSupplierOverridesRandomPoolPick(@TempDir Path outDir) throws Exception {
+        // 2026-08-24 yeni özellik: XU100 günlük özet işleri sabit bir sembol
+        // kullanmalı, rastgele BIST100 havuzundan seçilmemeli.
+        FakeBriefingClient briefing = new FakeBriefingClient();
+        FakePostGenerator gen = new FakePostGenerator();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
+        FakeXPoster x = new FakeXPoster();
+        FakeIgPoster ig = new FakeIgPoster();
+        FakeFbPoster fb = new FakeFbPoster();
+        VelzonAiBriefingJob job = builder(outDir, briefing, gen, img, x, ig, fb)
+                .symbolSupplier(() -> "XU100")
+                .build();
+
+        job.runOnce();
+
+        assertEquals("XU100", briefing.lastSymbol);
+    }
+
+    @Test
+    void framingNoteIsPassedThroughToContentGenerator(@TempDir Path outDir) throws Exception {
+        FakeBriefingClient briefing = new FakeBriefingClient();
+        FakePostGenerator gen = new FakePostGenerator();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
+        FakeXPoster x = new FakeXPoster();
+        FakeIgPoster ig = new FakeIgPoster();
+        FakeFbPoster fb = new FakeFbPoster();
+        VelzonAiBriefingJob job = builder(outDir, briefing, gen, img, x, ig, fb)
+                .framingNote("GÜNE BAŞLARKEN")
+                .build();
+
+        job.runOnce();
+
+        assertEquals("GÜNE BAŞLARKEN", gen.lastFramingNote);
+    }
+
+    @Test
+    void defaultSymbolSupplierAndFramingNoteMatchOriginalBehavior(@TempDir Path outDir) throws Exception {
+        // Builder'a hiçbir yeni alan set edilmezse eski davranış (rastgele
+        // havuz seçimi, çerçeveleme yok) korunmalı — regresyon kilidi.
+        FakeBriefingClient briefing = new FakeBriefingClient();
+        FakePostGenerator gen = new FakePostGenerator();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
+        FakeXPoster x = new FakeXPoster();
+        FakeIgPoster ig = new FakeIgPoster();
+        FakeFbPoster fb = new FakeFbPoster();
+        VelzonAiBriefingJob job = builder(outDir, briefing, gen, img, x, ig, fb).build();
+
+        job.runOnce();
+
+        assertTrue(VelzonBist100SymbolPool.SYMBOLS.contains(briefing.lastSymbol));
+        assertNull(gen.lastFramingNote);
     }
 }

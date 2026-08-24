@@ -56,4 +56,27 @@ class VelzonAiBriefingSchedulerTest {
         assertDoesNotThrow(scheduler::executeNow);
         scheduler.stop();
     }
+
+    @Test
+    void defaultConstructorUsesFiveDailyTriggerTimes() {
+        // 2026-08-24 öncesi tek kullanım — bu davranış korunmalı (regresyon
+        // kilidi), yeni configurable-triggerTimes constructor'ı eklenirken.
+        VelzonAiBriefingScheduler scheduler = new VelzonAiBriefingScheduler(() -> { });
+
+        assertEquals(java.util.List.of(
+                LocalTime.of(10, 30), LocalTime.of(12, 0), LocalTime.of(13, 30),
+                LocalTime.of(15, 0), LocalTime.of(16, 30)), scheduler.triggerTimes());
+        scheduler.stop();
+    }
+
+    @Test
+    void customTriggerTimesConstructorUsesGivenTimes() {
+        // 2026-08-24 yeni özellik: XU100 günlük özet işleri için tek-saatlik
+        // (09:30 sabah / 19:00 akşam) ayrı zamanlayıcı örnekleri gerekiyor.
+        VelzonAiBriefingScheduler scheduler = new VelzonAiBriefingScheduler(
+                () -> { }, java.util.List.of(LocalTime.of(9, 30)));
+
+        assertEquals(java.util.List.of(LocalTime.of(9, 30)), scheduler.triggerTimes());
+        scheduler.stop();
+    }
 }

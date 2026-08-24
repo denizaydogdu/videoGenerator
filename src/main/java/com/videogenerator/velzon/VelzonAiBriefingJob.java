@@ -62,6 +62,8 @@ public class VelzonAiBriefingJob implements Runnable {
     private final Path outputDir;
     private final String publicBaseUrl;
     private final Supplier<Boolean> tradingTimeCheck;
+    private final Supplier<String> symbolSupplier;
+    private final String framingNote;
 
     private VelzonAiBriefingJob(Builder b) {
         this.briefingClient = b.briefingClient;
@@ -73,6 +75,8 @@ public class VelzonAiBriefingJob implements Runnable {
         this.outputDir = b.outputDir;
         this.publicBaseUrl = b.publicBaseUrl;
         this.tradingTimeCheck = b.tradingTimeCheck;
+        this.symbolSupplier = b.symbolSupplier;
+        this.framingNote = b.framingNote;
     }
 
     @Override
@@ -102,11 +106,11 @@ public class VelzonAiBriefingJob implements Runnable {
     void runOnce() throws Exception {
         cleanupOldImages();
 
-        String symbol = VelzonBist100SymbolPool.pickRandom(1).get(0);
+        String symbol = symbolSupplier.get();
         logger.info("Velzon AI brifing işi başlıyor: {}", symbol);
 
         VelzonBriefingClient.Briefing briefing = briefingClient.fetchBriefing(symbol, TIMEFRAME);
-        VelzonAiBriefingPostGenerator.AdaptedContent adapted = contentGenerator.adapt(briefing);
+        VelzonAiBriefingPostGenerator.AdaptedContent adapted = contentGenerator.adapt(briefing, framingNote);
 
         String jobId = "job-" + System.currentTimeMillis();
         Path imgPath = outputDir.resolve(jobId).resolve("image.png");
@@ -200,6 +204,8 @@ public class VelzonAiBriefingJob implements Runnable {
         private Path outputDir;
         private String publicBaseUrl;
         private Supplier<Boolean> tradingTimeCheck = BistTradingCalendar::isTradingTimeNow;
+        private Supplier<String> symbolSupplier = () -> VelzonBist100SymbolPool.pickRandom(1).get(0);
+        private String framingNote;
 
         public Builder briefingClient(VelzonBriefingClient v) { this.briefingClient = v; return this; }
         public Builder contentGenerator(VelzonAiBriefingPostGenerator v) { this.contentGenerator = v; return this; }
@@ -212,6 +218,16 @@ public class VelzonAiBriefingJob implements Runnable {
 
         /** Testte BIST-açık kontrolünü sahte bir sonuçla değiştirmek için. */
         public Builder tradingTimeCheck(Supplier<Boolean> v) { this.tradingTimeCheck = v; return this; }
+
+        /**
+         * Varsayılan: rastgele BIST100 havuzundan seçim. Sabit endeks
+         * (XU100 günlük özet işleri, 2026-08-24) gibi tek-sembollü işler
+         * için override edilir.
+         */
+        public Builder symbolSupplier(Supplier<String> v) { this.symbolSupplier = v; return this; }
+
+        /** Sabah "güne başlarken" / akşam "gün sonu" gibi özel çerçeveleme — varsayılan yok. */
+        public Builder framingNote(String v) { this.framingNote = v; return this; }
 
         public VelzonAiBriefingJob build() {
             return new VelzonAiBriefingJob(this);
