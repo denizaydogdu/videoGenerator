@@ -75,17 +75,33 @@ public class VelzonAiBriefingPostGenerator {
     }
 
     public VelzonAiBriefingPostGenerator(LlmClient llm) {
-        this(llm, () -> java.util.concurrent.ThreadLocalRandom.current().nextBoolean());
+        this(llm, alternatingXFocusChooser());
+    }
+
+    /**
+     * Bağımsız %50 yazı-tura DEĞİL — rastgele bir başlangıçtan sonra KESİN
+     * OLARAK alternate eder (arka arkaya iki kez aynı seçim asla çıkmaz).
+     * Kullanıcının 2026-08-24 endişesi haklıydı: bağımsız rastgelelikte
+     * günde 5 turun hepsinin şansla "teknik" çıkması istatistiksel olarak
+     * mümkündür (%3+ ihtimal 5 turda) — bu, o riski sıfırlar.
+     */
+    private static java.util.function.Supplier<Boolean> alternatingXFocusChooser() {
+        var state = new java.util.concurrent.atomic.AtomicReference<Boolean>();
+        return () -> state.updateAndGet(prev -> prev == null
+                ? java.util.concurrent.ThreadLocalRandom.current().nextBoolean()
+                : !prev);
     }
 
     /**
      * Testte "x" odağını (teknik/kurumsal akış) deterministik seçmek için —
      * kullanıcının 2026-08-24 talebi: X tweet'i her zaman teknik özete
      * öncelik vermesin, bazen KURUMSAL AKIŞ verisi de öne çıksın. Gerçek
-     * seçim {@code xFocusChooser}'a bırakılır (varsayılan: %50 rastgele);
-     * KURUMSAL AKIŞ bölümünde veri yoksa ({@link #hasInstitutionalFlowData})
-     * seçim ne olursa olsun teknik odağa düşülür — olmayan veriye öncelik
-     * vermenin anlamı yok.
+     * seçim {@code xFocusChooser}'a bırakılır (varsayılan: {@link
+     * #alternatingXFocusChooser}); KURUMSAL AKIŞ bölümünde veri yoksa
+     * ({@link #hasInstitutionalFlowData}) seçim ne olursa olsun teknik
+     * odağa düşülür — olmayan veriye öncelik vermenin anlamı yok (bu
+     * durumda alternatör state'i yine de ilerler, bir sonraki gerçek
+     * fırsatta diğer taraf denenmiş olur).
      */
     VelzonAiBriefingPostGenerator(LlmClient llm, java.util.function.Supplier<Boolean> xFocusChooser) {
         this.llm = llm;

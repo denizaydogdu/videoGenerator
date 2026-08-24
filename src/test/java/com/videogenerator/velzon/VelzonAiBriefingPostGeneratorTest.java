@@ -102,6 +102,32 @@ class VelzonAiBriefingPostGeneratorTest {
     }
 
     @Test
+    void defaultConstructorAlternatesFocusAcrossConsecutiveCallsNeverTwiceInARow() throws Exception {
+        // Kullanıcının endişesi: bağımsız %50 rastgelelikte arka arkaya
+        // birkaç tur şansla hep "teknik" çıkabilir. Varsayılan seçici artık
+        // KESİN alternate eder — 20 ardışık çağrıda iki aynı seçim yan yana
+        // gelmemeli.
+        FakeLlm llm = new FakeLlm();
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        boolean previousWasKurumsal = false;
+        boolean first = true;
+        for (int i = 0; i < 20; i++) {
+            generator.adapt(briefing);
+            boolean isKurumsal = llm.lastUser.contains("ÖNCELİK KURUMSAL AKIŞ");
+            assertTrue(isKurumsal || llm.lastUser.contains("ÖNCELİK TEKNİK GÖRÜNÜM"),
+                    "odak talimatı beklenen iki metinden biri değil");
+            if (!first) {
+                assertNotEquals(previousWasKurumsal, isKurumsal,
+                        "arka arkaya aynı odak seçildi (tur " + i + ")");
+            }
+            previousWasKurumsal = isKurumsal;
+            first = false;
+        }
+    }
+
+    @Test
     void adaptForcesTeknikPriorityWhenNoInstitutionalDataEvenIfChooserTrue() throws Exception {
         // Chooser "kurumsal akışa öncelik ver" dese bile, veri yoksa
         // (Django'nun "bağlamda yok" tek cümlesi) öncelik verilecek bir
