@@ -642,6 +642,25 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
       istendi). 332 → 327 test (temizlenen testler nedeniyle azaldı,
       regresyon yok). Prod'a deploy edilecek (yarının 10:30 turu bu
       davranışla çalışmalı).
+- [x] **KURUMSAL AKIŞ zenginleştirildi (Django tarafı) — lot/delta +
+      daha uzun kapsam** ✅ (2026-08-24, öğleden sonra) — kullanıcı
+      gerçek trader "takas analizi" tweet'lerini (@takaskurduu vb.)
+      referans göstererek mevcut bölümün çok sığ olduğunu belirtti.
+      Araştırma: Django'nun kendi digest fonksiyonu (`_oa_top`) OA
+      API'nin döndürdüğü **lot sayısı** (`last_value`) ve **periyot bazlı
+      gerçek delta** (`difference`/`net_q`) alanlarını hiç okumuyor,
+      sadece yüzde/maliyet alıyordu — canlı API isteğiyle doğrulandı.
+      İki düzeltme: (1) prompt cümle limiti 2-4'ten 3-6'ya çıkarıldı,
+      SUREKLILIK/CELISKI verisi artık "varsa zorunlu" (opsiyonel değil);
+      (2) `_oa_top`/`_oa_side_periods` artık lot+delta'yı da çıkarıp
+      SUREKLILIK satırlarına taşıyor — "Tera haftalık -16.820.000 lot"
+      tarzı somut rakamlar artık prompt'a giriyor. 9 yeni test, 420/420
+      tam regresyon. Sadece commit+push yapıldı (`1816e941`, `main`
+      dalı) — deploy kullanıcının Jenkins'i. **Not:** T+2/virman tespiti
+      (GESAN örneğindeki gibi "görünen satış aslında virman mıydı"
+      analizi) hâlâ ayrı, büyük bir özellik — kod tabanında hiç emsali
+      yok, kalıcı geçmiş veri saklama + yeni karşılaştırma mantığı
+      gerektiriyor, henüz başlanmadı.
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 
