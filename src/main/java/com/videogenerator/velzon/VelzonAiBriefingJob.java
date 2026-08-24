@@ -1,6 +1,5 @@
 package com.videogenerator.velzon;
 
-import com.videogenerator.api.ImageGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,8 +16,10 @@ import java.util.function.Supplier;
  * Velzon AI Brifing içerik işi — Django'nun servis-seviyeli AI Brifing
  * uç noktasından ({@link VelzonBriefingClient}) rastgele bir BIST100
  * hissesi için gerçek analiz metni çekip ({@link VelzonBist100SymbolPool}),
- * üç platform için uyarlayıp ({@link VelzonAiBriefingPostGenerator}), tek
- * bir ortak görselle X/Instagram/Facebook'a otomatik yayınlar.
+ * üç platform için uyarlayıp ({@link VelzonAiBriefingPostGenerator}),
+ * Velzon'un kendi sunucusunda sembol başına hazır üretilen gerçek terminal
+ * kartıyla ({@link VelzonTerminalImageClient} — AI ile üretilen soyut bir
+ * görsel DEĞİL, 2026-08-24 kararı) X/Instagram/Facebook'a otomatik yayınlar.
  *
  * Kullanıcının açık kararı: bu iş TAMAMEN OTOMATİK (insan onayı yok) —
  * diğer Velzon platformlarındaki "üret → manifest'e yaz → Yayınla'ya
@@ -54,7 +55,7 @@ public class VelzonAiBriefingJob implements Runnable {
 
     private final VelzonBriefingClient briefingClient;
     private final VelzonAiBriefingPostGenerator contentGenerator;
-    private final ImageGenerator imageGenerator;
+    private final VelzonTerminalImageClient terminalImageClient;
     private final XPoster xPoster;
     private final InstagramPoster instagramPoster;
     private final FacebookPoster facebookPoster;
@@ -65,7 +66,7 @@ public class VelzonAiBriefingJob implements Runnable {
     private VelzonAiBriefingJob(Builder b) {
         this.briefingClient = b.briefingClient;
         this.contentGenerator = b.contentGenerator;
-        this.imageGenerator = b.imageGenerator;
+        this.terminalImageClient = b.terminalImageClient;
         this.xPoster = b.xPoster;
         this.instagramPoster = b.instagramPoster;
         this.facebookPoster = b.facebookPoster;
@@ -109,8 +110,7 @@ public class VelzonAiBriefingJob implements Runnable {
 
         String jobId = "job-" + System.currentTimeMillis();
         Path imgPath = outputDir.resolve(jobId).resolve("image.png");
-        Files.createDirectories(imgPath.getParent());
-        imageGenerator.generate(adapted.imagePrompt(), imgPath);
+        terminalImageClient.fetch(symbol, imgPath);
         String imageUrl = publicBaseUrl + "/api/velzon-ai-briefing/images/" + jobId + "/image.png";
 
         publishToX(symbol, adapted, imgPath);
@@ -193,7 +193,7 @@ public class VelzonAiBriefingJob implements Runnable {
     public static class Builder {
         private VelzonBriefingClient briefingClient;
         private VelzonAiBriefingPostGenerator contentGenerator;
-        private ImageGenerator imageGenerator;
+        private VelzonTerminalImageClient terminalImageClient;
         private XPoster xPoster;
         private InstagramPoster instagramPoster;
         private FacebookPoster facebookPoster;
@@ -203,7 +203,7 @@ public class VelzonAiBriefingJob implements Runnable {
 
         public Builder briefingClient(VelzonBriefingClient v) { this.briefingClient = v; return this; }
         public Builder contentGenerator(VelzonAiBriefingPostGenerator v) { this.contentGenerator = v; return this; }
-        public Builder imageGenerator(ImageGenerator v) { this.imageGenerator = v; return this; }
+        public Builder terminalImageClient(VelzonTerminalImageClient v) { this.terminalImageClient = v; return this; }
         public Builder xPoster(XPoster v) { this.xPoster = v; return this; }
         public Builder instagramPoster(InstagramPoster v) { this.instagramPoster = v; return this; }
         public Builder facebookPoster(FacebookPoster v) { this.facebookPoster = v; return this; }

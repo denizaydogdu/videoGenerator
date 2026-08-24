@@ -1,7 +1,5 @@
 package com.videogenerator.velzon;
 
-import com.videogenerator.api.ImageGenerator;
-import com.videogenerator.util.ApiException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -35,22 +33,19 @@ class VelzonAiBriefingJobTest {
             return new AdaptedContent(
                     briefing.symbol() + " kısa özet. https://www.velzon.tr/terminal/",
                     briefing.symbol() + " Instagram özeti.",
-                    briefing.symbol() + " Facebook özeti.",
-                    "abstract financial dashboard");
+                    briefing.symbol() + " Facebook özeti.");
         }
     }
 
-    static class FakeImageGen implements ImageGenerator {
+    static class FakeTerminalImageClient extends VelzonTerminalImageClient {
         int calls = 0;
+        FakeTerminalImageClient() { super(null, "https://www.velzon.tr"); }
+
         @Override
-        public File generate(String prompt, Path outFile) throws ApiException {
+        public File fetch(String symbol, Path outFile) throws Exception {
             calls++;
-            try {
-                Files.createDirectories(outFile.getParent());
-                Files.write(outFile, "fake-png-bytes".getBytes());
-            } catch (Exception e) {
-                throw new ApiException(com.videogenerator.model.ApiProvider.OPENAI_GPT, "boom", e);
-            }
+            Files.createDirectories(outFile.getParent());
+            Files.write(outFile, "fake-terminal-png-bytes".getBytes());
             return outFile.toFile();
         }
     }
@@ -100,12 +95,12 @@ class VelzonAiBriefingJobTest {
     }
 
     private VelzonAiBriefingJob.Builder builder(Path outDir, FakeBriefingClient briefing,
-            FakePostGenerator gen, FakeImageGen img, VelzonAiBriefingJob.XPoster x,
+            FakePostGenerator gen, FakeTerminalImageClient img, VelzonAiBriefingJob.XPoster x,
             VelzonAiBriefingJob.InstagramPoster ig, FakeFbPoster fb) {
         return new VelzonAiBriefingJob.Builder()
                 .briefingClient(briefing)
                 .contentGenerator(gen)
-                .imageGenerator(img)
+                .terminalImageClient(img)
                 .xPoster(x)
                 .instagramPoster(ig)
                 .facebookPoster(fb)
@@ -117,7 +112,7 @@ class VelzonAiBriefingJobTest {
     void runOncePostsToAllThreePlatforms(@TempDir Path outDir) throws Exception {
         FakeBriefingClient briefing = new FakeBriefingClient();
         FakePostGenerator gen = new FakePostGenerator();
-        FakeImageGen img = new FakeImageGen();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
         FakeXPoster x = new FakeXPoster();
         FakeIgPoster ig = new FakeIgPoster();
         FakeFbPoster fb = new FakeFbPoster();
@@ -138,7 +133,7 @@ class VelzonAiBriefingJobTest {
     void oneFailingPlatformDoesNotBlockTheOthers(@TempDir Path outDir) throws Exception {
         FakeBriefingClient briefing = new FakeBriefingClient();
         FakePostGenerator gen = new FakePostGenerator();
-        FakeImageGen img = new FakeImageGen();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
         FakeXPoster x = new FakeXPoster();
         x.fail = true;
         FakeIgPoster ig = new FakeIgPoster();
@@ -156,7 +151,7 @@ class VelzonAiBriefingJobTest {
     void imagesAreServedFromOutputDirWithPublicBaseUrl(@TempDir Path outDir) throws Exception {
         FakeBriefingClient briefing = new FakeBriefingClient();
         FakePostGenerator gen = new FakePostGenerator();
-        FakeImageGen img = new FakeImageGen();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
         FakeXPoster x = new FakeXPoster();
         AtomicInteger seenImageUrl = new AtomicInteger();
         VelzonAiBriefingJob.InstagramPoster ig = new VelzonAiBriefingJob.InstagramPoster() {
@@ -197,7 +192,7 @@ class VelzonAiBriefingJobTest {
 
         FakeBriefingClient briefing = new FakeBriefingClient();
         FakePostGenerator gen = new FakePostGenerator();
-        FakeImageGen img = new FakeImageGen();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
         FakeXPoster x = new FakeXPoster();
         FakeIgPoster ig = new FakeIgPoster();
         FakeFbPoster fb = new FakeFbPoster();
@@ -213,7 +208,7 @@ class VelzonAiBriefingJobTest {
     void skipsWhenBistIsClosed(@TempDir Path outDir) throws Exception {
         FakeBriefingClient briefing = new FakeBriefingClient();
         FakePostGenerator gen = new FakePostGenerator();
-        FakeImageGen img = new FakeImageGen();
+        FakeTerminalImageClient img = new FakeTerminalImageClient();
         FakeXPoster x = new FakeXPoster();
         FakeIgPoster ig = new FakeIgPoster();
         FakeFbPoster fb = new FakeFbPoster();
@@ -236,7 +231,7 @@ class VelzonAiBriefingJobTest {
                     }
                 })
                 .contentGenerator(new FakePostGenerator())
-                .imageGenerator(new FakeImageGen())
+                .terminalImageClient(new FakeTerminalImageClient())
                 .xPoster(new FakeXPoster())
                 .instagramPoster(new FakeIgPoster())
                 .facebookPoster(new FakeFbPoster())

@@ -17,6 +17,11 @@ import org.slf4j.LoggerFactory;
  * bu veri artık sosyal medya postlarında da kurum adı + yüzde olarak
  * aynen paylaşılacak (önceki oturumda bu bölüm bilinçli olarak
  * çıkarılıyordu; karar değişti).
+ *
+ * AdaptedContent artık bir görsel-üretim prompt'u TAŞIMAZ — 2026-08-24
+ * kararıyla görsel artık AI ile üretilmiyor, Velzon'un kendi sunucusunda
+ * sembol başına hazır üretilen gerçek terminal kartı ({@link
+ * VelzonTerminalImageClient}) kullanılıyor.
  */
 public class VelzonAiBriefingPostGenerator {
     private static final Logger logger = LoggerFactory.getLogger(VelzonAiBriefingPostGenerator.class);
@@ -72,21 +77,16 @@ public class VelzonAiBriefingPostGenerator {
             - "facebookCaption": longer form is fine, more educational detail
               from the source, ending with the same CTA — Facebook has no
               practical length limit for this use case.
-            - "imagePrompt": ONE shared photorealistic, brand-safe image prompt
-              (financial dashboard / candlestick chart imagery) used across all
-              three platforms — NO people/faces, NO text overlays, NO specific
-              price numbers rendered as text-in-image.
 
             Respond with ONLY valid JSON, no markdown fences:
-            {"x":"...","instagramCaption":"...","facebookCaption":"...",
-             "imagePrompt":"..."}""";
+            {"x":"...","instagramCaption":"...","facebookCaption":"..."}""";
 
     private final LlmClient llm;
     private final Gson gson = new Gson();
     private final java.util.function.Supplier<Boolean> xFocusChooser;
 
     public record AdaptedContent(String xText, String instagramCaption,
-                                 String facebookCaption, String imagePrompt) {
+                                 String facebookCaption) {
     }
 
     public VelzonAiBriefingPostGenerator(LlmClient llm) {
@@ -190,9 +190,7 @@ public class VelzonAiBriefingPostGenerator {
         requireSymbolMentioned(instagramCaption, "instagramCaption", briefing.symbol());
         requireSymbolMentioned(facebookCaption, "facebookCaption", briefing.symbol());
 
-        AdaptedContent result = new AdaptedContent(
-                xText, instagramCaption, facebookCaption,
-                requireField(resp, "imagePrompt"));
+        AdaptedContent result = new AdaptedContent(xText, instagramCaption, facebookCaption);
         logger.info("Adapted AI briefing for {} into 3-platform content", briefing.symbol());
         return result;
     }

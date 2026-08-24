@@ -34,8 +34,7 @@ class VelzonAiBriefingPostGeneratorTest {
         String response = """
                 {"x":"THYAO teknik görünümde zayıf, RSI nötr bölgede. Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin. #borsa #bist",
                  "instagramCaption":"THYAO için teknik görünüm ve temel veriler...",
-                 "facebookCaption":"THYAO analizi: teknik görünüm zayıf...",
-                 "imagePrompt":"photorealistic financial dashboard, no people, no text"}""";
+                 "facebookCaption":"THYAO analizi: teknik görünüm zayıf..."}""";
 
         @Override
         public String complete(String system, String user) {
@@ -58,7 +57,6 @@ class VelzonAiBriefingPostGeneratorTest {
         assertTrue(adapted.xText().contains("velzon.tr/terminal"));
         assertFalse(adapted.instagramCaption().isBlank());
         assertFalse(adapted.facebookCaption().isBlank());
-        assertFalse(adapted.imagePrompt().isBlank());
     }
 
     @Test
@@ -174,7 +172,7 @@ class VelzonAiBriefingPostGeneratorTest {
     void adaptThrowsWhenXTextExceeds280CharsAndLlmDidNotShortenIt() {
         FakeLlm llm = new FakeLlm();
         llm.response = "{\"x\":\"" + "x".repeat(300)
-                + "\",\"instagramCaption\":\"c\",\"facebookCaption\":\"c\",\"imagePrompt\":\"p\"}";
+                + "\",\"instagramCaption\":\"c\",\"facebookCaption\":\"c\"}";
         var generator = new VelzonAiBriefingPostGenerator(llm);
         var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
 
@@ -189,7 +187,7 @@ class VelzonAiBriefingPostGeneratorTest {
         llm.response = "{\"x\":\"Kurumsal akış: BANK OF AMERICA %40.8, +218.064 lot. "
                 + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
                 + "\"instagramCaption\":\"THYAO analizi burada.\","
-                + "\"facebookCaption\":\"THYAO analizi burada.\",\"imagePrompt\":\"p\"}";
+                + "\"facebookCaption\":\"THYAO analizi burada.\"}";
         var generator = new VelzonAiBriefingPostGenerator(llm);
         var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
 
@@ -202,7 +200,7 @@ class VelzonAiBriefingPostGeneratorTest {
         llm.response = "{\"x\":\"THYAO teknik görünümde zayıf. "
                 + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
                 + "\"instagramCaption\":\"Kurumsal akış: BANK OF AMERICA %40.8 alıcı.\","
-                + "\"facebookCaption\":\"THYAO analizi burada.\",\"imagePrompt\":\"p\"}";
+                + "\"facebookCaption\":\"THYAO analizi burada.\"}";
         var generator = new VelzonAiBriefingPostGenerator(llm);
         var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
 
@@ -216,7 +214,7 @@ class VelzonAiBriefingPostGeneratorTest {
         llm.response = "{\"x\":\"THYAO'nun teknik görünümü zayıf. "
                 + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
                 + "\"instagramCaption\":\"THYAO'da kurumsal akış güçlü.\","
-                + "\"facebookCaption\":\"THYAO'daki teknik tablo.\",\"imagePrompt\":\"p\"}";
+                + "\"facebookCaption\":\"THYAO'daki teknik tablo.\"}";
         var generator = new VelzonAiBriefingPostGenerator(llm);
         var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
 
@@ -233,7 +231,7 @@ class VelzonAiBriefingPostGeneratorTest {
         llm.response = "{\"x\":\"THYAO teknik görünümde zayıf. "
                 + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
                 + "\"instagramCaption\":\"" + tooLong + "\","
-                + "\"facebookCaption\":\"THYAO analizi burada.\",\"imagePrompt\":\"p\"}";
+                + "\"facebookCaption\":\"THYAO analizi burada.\"}";
         var generator = new VelzonAiBriefingPostGenerator(llm);
         var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
 

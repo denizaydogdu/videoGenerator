@@ -490,10 +490,14 @@ public class Main {
         com.videogenerator.velzon.VelzonAiBriefingJob.FacebookPoster velzonBriefingFbPoster =
                 velzonFacebookClient::createPost;
 
+        var velzonTerminalImageClient = new com.videogenerator.velzon.VelzonTerminalImageClient(
+                new com.videogenerator.velzon.VelzonTerminalImageHttp(),
+                config.get("velzon.briefing.base.url", "https://www.velzon.tr"));
+
         return new com.videogenerator.velzon.VelzonAiBriefingJob.Builder()
                 .briefingClient(velzonBriefingClient)
                 .contentGenerator(velzonBriefingGenerator)
-                .imageGenerator(new com.videogenerator.api.ImageApiClient())
+                .terminalImageClient(velzonTerminalImageClient)
                 .xPoster(velzonBriefingXPoster)
                 .instagramPoster(velzonBriefingIgPoster)
                 .facebookPoster(velzonBriefingFbPoster)
