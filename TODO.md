@@ -679,6 +679,18 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
       çıkmıyor. 1 yeni test (20 ardışık çağrı, hiç ardışık tekrar yok).
       344/344 tam regresyon. Prod'a deploy edildi (15:00 turundan önce
       yetiştirildi).
+- [x] **15:00 turunda 2 gerçek bug bulundu, ikisi de aynı gün düzeltildi** ✅
+      — (1) KURUMSAL AKIŞ odağı seçilince LLM hisse sembolünü hiç
+      yazmadan tweet attı (okuyucu hangi hisseden bahsedildiğini
+      bilemedi) — prompt kuralı + Java tarafında zorunlu kontrol eklendi
+      (sembol yoksa o tur `IllegalStateException` ile atlanır). (2) Aynı
+      turda Instagram "caption too long" (2200 karakter sert sınır)
+      hatasıyla reddetti (X/Facebook sorunsuzdu) — ÖNEMLİ TASARIM KARARI:
+      bunu `adapt()` içinde fırlatmak YANLIŞ olurdu (içerik üretimi tüm
+      platformlardan önce olduğu için X/Facebook'u da kaçırırdı) — bunun
+      yerine güvenli kısaltma (sembol+CTA korunarak) eklendi, platform
+      bağımsızlığı garantisi korundu. 7 yeni test, 350/350 tam regresyon.
+      Prod'a deploy edildi (16:30 turundan önce yetiştirildi).
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 
