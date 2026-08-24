@@ -142,4 +142,27 @@ class BackofficeAuthTest {
 
         assertEquals(200, res.statusCode());
     }
+
+    @Test
+    void velzonAiBriefingImageStaysPublicEvenWithAuthConfigured() throws Exception {
+        // 2026-08-24 canlı regresyonu: auth eklendiğinde bu route yanlışlıkla
+        // korumaya alınmıştı, Instagram/Facebook görseli çekemeyip postu
+        // reddetmişti. Bu test o regresyonu kilitler.
+        java.nio.file.Path imagesDir = root.resolve("velzon-ai-briefing");
+        java.nio.file.Path jobDir = imagesDir.resolve("job-1");
+        Files.createDirectories(jobDir);
+        Files.write(jobDir.resolve("image.png"), new byte[]{1, 2, 3});
+
+        server = newServer().withAuth("velzon", "secret123")
+                .withVelzonAiBriefing(imagesDir);
+        int port = server.start();
+
+        HttpResponse<byte[]> res = client.send(
+                HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                        + "/api/velzon-ai-briefing/images/job-1/image.png")).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+
+        assertEquals(200, res.statusCode());
+        assertArrayEquals(new byte[]{1, 2, 3}, res.body());
+    }
 }

@@ -201,16 +201,26 @@ public class BackofficeServer {
         this.requestedPort = port;
     }
 
-    /** @return the actual listening port (useful when constructed with 0) */
+    /**
+     * @return the actual listening port (useful when constructed with 0)
+     *
+     * NOT: {@code /api} context'ine blanket bir {@code Authenticator}
+     * uygulanmıyor — Instagram/Facebook'un Content Publishing API'si post
+     * atmadan önce görsel URL'sini KİMLİK BİLGİSİ OLMADAN kendi
+     * sunucularından çeker (bkz. servePinterestImage/serveVelzonInstagramImage/
+     * serveVelzonFacebookImage/serveVelzonAiBriefingImage). Bunlar bloklu
+     * kalırsa Meta "medya indirilemedi" hatasıyla postu reddeder — canlıda
+     * tam olarak bu yaşandı (2026-08-24 10:30 turu). Bu yüzden auth kontrolü
+     * {@link #handleApi} içinde ELLE yapılıyor, dört public görsel route'u
+     * ({@link #isPublicImageRoute}) hariç tutularak. Statik site ({@code /})
+     * için istisna gerekmiyor, orada JDK'nın {@code Authenticator}'ı yeterli.
+     */
     public int start() throws IOException {
         httpServer = HttpServer.create(new InetSocketAddress("127.0.0.1", requestedPort), 0);
-        var apiContext = httpServer.createContext("/api", this::handleApi);
+        httpServer.createContext("/api", this::handleApi);
         var staticContext = httpServer.createContext("/", this::handleStatic);
-        if (authUsername != null && !authUsername.isBlank()
-                && authPassword != null && !authPassword.isBlank()) {
-            com.sun.net.httpserver.Authenticator authenticator = buildAuthenticator();
-            apiContext.setAuthenticator(authenticator);
-            staticContext.setAuthenticator(authenticator);
+        if (authConfigured()) {
+            staticContext.setAuthenticator(buildAuthenticator());
             logger.info("Backoffice HTTP Basic Auth enabled");
         } else {
             logger.warn("Backoffice auth NOT configured — server is UNPROTECTED "
@@ -224,24 +234,82 @@ public class BackofficeServer {
         return port;
     }
 
+    private boolean authConfigured() {
+        return authUsername != null && !authUsername.isBlank()
+                && authPassword != null && !authPassword.isBlank();
+    }
+
     private com.sun.net.httpserver.Authenticator buildAuthenticator() {
         return new com.sun.net.httpserver.BasicAuthenticator("shorts-backoffice") {
             @Override
             public boolean checkCredentials(String user, String pwd) {
-                // Sabit-zamanlı karşılaştırma — timing attack'e karşı (Django
-                // tarafındaki hmac.compare_digest ile aynı prensip). "&" (kısa
-                // devre YOK) kasıtlı: "&&" olsaydı yanlış kullanıcı adında
-                // şifre hiç karşılaştırılmaz, bu da kullanıcı adının doğru
-                // olup olmadığını zamanlamadan sızdırabilirdi.
-                boolean userMatch = java.security.MessageDigest.isEqual(
-                        authUsername.getBytes(StandardCharsets.UTF_8),
-                        user.getBytes(StandardCharsets.UTF_8));
-                boolean passMatch = java.security.MessageDigest.isEqual(
-                        authPassword.getBytes(StandardCharsets.UTF_8),
-                        pwd.getBytes(StandardCharsets.UTF_8));
-                return userMatch & passMatch;
+                return credentialsMatch(user, pwd);
             }
         };
+    }
+
+    /**
+     * Sabit-zamanlı karşılaştırma — timing attack'e karşı (Django tarafındaki
+     * hmac.compare_digest ile aynı prensip). "&" (kısa devre YOK) kasıtlı:
+     * "&&" olsaydı yanlış kullanıcı adında şifre hiç karşılaştırılmaz, bu da
+     * kullanıcı adının doğru olup olmadığını zamanlamadan sızdırabilirdi.
+     */
+    private boolean credentialsMatch(String user, String pwd) {
+        boolean userMatch = java.security.MessageDigest.isEqual(
+                authUsername.getBytes(StandardCharsets.UTF_8),
+                user.getBytes(StandardCharsets.UTF_8));
+        boolean passMatch = java.security.MessageDigest.isEqual(
+                authPassword.getBytes(StandardCharsets.UTF_8),
+                pwd.getBytes(StandardCharsets.UTF_8));
+        return userMatch & passMatch;
+    }
+
+    /**
+     * Meta'nın (Instagram/Facebook Content Publishing API) ve benzerlerinin
+     * postlamadan önce kimlik bilgisi OLMADAN çektiği görsel servis
+     * route'ları — auth kontrolünden muaf tutulmalı. Segment şekilleri
+     * ilgili handleXxxApi metotlarındaki route eşleşmesiyle birebir aynı.
+     */
+    static boolean isPublicImageRoute(String[] seg) {
+        if (seg.length < 3) {
+            return false;
+        }
+        String feature = seg[2];
+        if ("velzon-ai-briefing".equals(feature)) {
+            return seg.length == 6 && "images".equals(seg[3]);
+        }
+        if ("pinterest".equals(feature) || "velzon-instagram".equals(feature)
+                || "velzon-facebook".equals(feature)) {
+            return seg.length == 7 && "batches".equals(seg[3]) && "images".equals(seg[5]);
+        }
+        return false;
+    }
+
+    private boolean apiRequestAuthorized(HttpExchange ex, String[] seg) {
+        if (!authConfigured() || isPublicImageRoute(seg)) {
+            return true;
+        }
+        String header = ex.getRequestHeaders().getFirst("Authorization");
+        if (header == null || !header.startsWith("Basic ")) {
+            return false;
+        }
+        String decoded;
+        try {
+            decoded = new String(java.util.Base64.getDecoder().decode(header.substring(6)),
+                    StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        int colon = decoded.indexOf(':');
+        if (colon < 0) {
+            return false;
+        }
+        return credentialsMatch(decoded.substring(0, colon), decoded.substring(colon + 1));
+    }
+
+    private void sendUnauthorized(HttpExchange ex) throws IOException {
+        ex.getResponseHeaders().set("WWW-Authenticate", "Basic realm=\"shorts-backoffice\"");
+        sendError(ex, 401, "Unauthorized");
     }
 
     public void stop() {
@@ -260,6 +328,10 @@ public class BackofficeServer {
             // Raw path: %2F must NOT merge/split segments before routing
             String[] seg = ex.getRequestURI().getRawPath().split("/");
             // /api/channels → ["", "api", "channels"]
+            if (!apiRequestAuthorized(ex, seg)) {
+                sendUnauthorized(ex);
+                return;
+            }
             String method = ex.getRequestMethod();
             if (seg.length >= 3 && "pinterest".equals(seg[2])) {
                 handlePinterestApi(ex, method, seg);
