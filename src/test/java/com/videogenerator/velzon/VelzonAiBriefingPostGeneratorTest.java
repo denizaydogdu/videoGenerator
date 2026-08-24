@@ -299,4 +299,13 @@ class VelzonAiBriefingPostGeneratorTest {
 
         assertFalse(llm.lastUser.contains("ÇERÇEVE:"));
     }
+
+    @Test
+    void systemPromptForbidsAnnouncingMissingData() {
+        // 2026-08-24 canlı örnek: gerçek bir tweet "Kurumsal akış verisi
+        // yok." diye yazmıştı — okuyucuya neyin eksik olduğunu söylemek
+        // yerine o konuyu sessizce atlaması gerekiyordu.
+        assertTrue(VelzonAiBriefingPostGenerator.SYSTEM.contains(
+                "NEVER announce that a topic's data is missing"));
+    }
 }

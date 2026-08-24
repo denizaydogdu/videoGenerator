@@ -691,6 +691,42 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
       yerine güvenli kısaltma (sembol+CTA korunarak) eklendi, platform
       bağımsızlığı garantisi korundu. 7 yeni test, 350/350 tam regresyon.
       Prod'a deploy edildi (16:30 turundan önce yetiştirildi).
+- [x] **AI-üretimi görsel yerine gerçek terminal kartı** ✅ (2026-08-24
+      akşam) — kullanıcının fikri: "hisse için terminal görüntüsü olabilir
+      mi?". ScreenshotOne (ücretli 3. parti) hesap açıldı ama kullanılmadı
+      — Django backend'inde zaten sembol başına ÜCRETSİZ, sunucu tarafında
+      dinamik üretilen bir sosyal medya kartı (1200x630 PNG, gerçek
+      fiyat+mum grafiği+teknik skor+Velzon markası, JS-render beklemeden
+      anında) olduğu keşfedildi: `GET /teknik-skorlar/{symbol}/og-image.png`.
+      Yeni `VelzonTerminalImageClient` bu uç noktayı çağırıyor, AI görsel
+      üretimi (`ImageApiClient`/gpt-image-2) tamamen kaldırıldı — maliyet
+      sıfırlandı + görsel gerçek veri içeriyor. `AdaptedContent`'ten
+      `imagePrompt` kaldırıldı. Adversarial review 0 kritik bulgu (tek
+      işaretlenen risk — bazı sembollerde üretim başarısız olabilir —
+      Django kodu incelemesiyle ve 6 sembolün canlı testiyle geçersiz
+      kılındı: uç nokta veri eksikse bile her zaman geçerli PNG döner).
+      8 yeni test, 356/356 tam regresyon.
+- [x] **XU100 (BIST100) günlük özet — sabah 09:30 + akşam 19:00** ✅
+      (2026-08-24 gece) — kullanıcı fikri: hisse bazlı brifingler dışında
+      BIST100 endeksi için günde 2 sabit post ("güne başlarken" seans
+      açılışından önce, "gün sonu" kapanıştan sonra). İkisi de seans saati
+      DIŞINDA olduğu için mevcut "seans açık mı" kontrolünden geçemezdi —
+      yeni `tradingTimeCheck` olarak `BistTradingCalendar::isTradingDay`
+      kullanıldı (sadece hafta sonu/tatil filtreler). `VelzonAiBriefingJob`'a
+      `symbolSupplier` (sabit sembole override edilebilir) ve `framingNote`
+      (LLM'e çerçeveleme talimatı) eklendi; `VelzonAiBriefingScheduler`
+      artık configurable tetikleme-saati listesi alıyor. Main.java'da
+      paylaşımlı istemciler tek yerden inşa edilip 3 ayrı job örneğine
+      (rastgele-hisse 5x/gün + XU100 sabah + XU100 akşam) dağıtıldı — her
+      job kendi içerik-üretici örneğini alıyor (X-odak alternatörü job'lar
+      arası karışmıyor). Yeni CLI: `velzon-ai-briefing-xu100-test
+      <morning|evening>`. Adversarial review 0 kritik bulgu (mevcut işte
+      regresyon yok, 3 job izole, kapatma mantığı doğru, saat kontrolleri
+      doğrulandı). 10 yeni test, 364/364 tam regresyon. Prod'a deploy
+      edildi, **akşam çerçevelemesiyle canlı doğrulandı**: X tweet'i "Gün
+      sonunda XU100: ..." diye başladı, X/Instagram/Facebook üçüne de
+      gerçek post gitti. Sabah 09:30 turu henüz otomatik olarak
+      doğrulanmadı (yarın kontrol edilecek).
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 

@@ -28,7 +28,7 @@ public class VelzonAiBriefingPostGenerator {
     private static final int MAX_X_LEN = 280;
     private static final int MAX_IG_CAPTION_LEN = 2200; // Instagram API'nin sert sınırı
 
-    private static final String SYSTEM = """
+    static final String SYSTEM = """
             You adapt a Turkish AI-generated stock analysis (from Velzon, a BIST
             stock-market terminal) into short social media posts for three
             platforms: X (Twitter), Instagram, and Facebook — all in Turkish.
@@ -49,6 +49,14 @@ public class VelzonAiBriefingPostGenerator {
               summarized away or genericized — in "instagramCaption"/
               "facebookCaption" whenever the source has it, regardless of
               the "x" focus below.
+            - NEVER announce that a topic's data is missing (e.g. never
+              write things like "Kurumsal akış verisi yok", "Temel veri
+              bulunmuyor", "bu konuda veri yok"). If the source says a
+              section is unavailable/empty for ANY topic (KURUMSAL AKIŞ,
+              TEMEL DURUM, etc.), simply SKIP that topic entirely in the
+              post as if it were never mentioned — write only about what
+              IS present. A reader should never be told what's missing,
+              only shown what's available.
             - For "x": the user message tells you, PER REQUEST, which content
               to lead with — either TEKNİK GÖRÜNÜM or KURUMSAL AKIŞ. Write
               that one first; if the 280-char budget leaves room, briefly
