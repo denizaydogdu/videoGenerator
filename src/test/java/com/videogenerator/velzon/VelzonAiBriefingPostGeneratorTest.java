@@ -78,6 +78,63 @@ class VelzonAiBriefingPostGeneratorTest {
     }
 
     @Test
+    void adaptPrioritizesKurumsalAkisForXWhenChooserTrueAndDataPresent() throws Exception {
+        // Kullanıcının 2026-08-24 talebi: X tweet'i her zaman teknik özete
+        // öncelik vermesin, bazen KURUMSAL AKIŞ da öne çıksın.
+        FakeLlm llm = new FakeLlm();
+        var generator = new VelzonAiBriefingPostGenerator(llm, () -> true);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        generator.adapt(briefing);
+
+        assertTrue(llm.lastUser.contains("ÖNCELİK KURUMSAL AKIŞ"));
+    }
+
+    @Test
+    void adaptPrioritizesTeknikForXWhenChooserFalse() throws Exception {
+        FakeLlm llm = new FakeLlm();
+        var generator = new VelzonAiBriefingPostGenerator(llm, () -> false);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        generator.adapt(briefing);
+
+        assertTrue(llm.lastUser.contains("ÖNCELİK TEKNİK GÖRÜNÜM"));
+    }
+
+    @Test
+    void adaptForcesTeknikPriorityWhenNoInstitutionalDataEvenIfChooserTrue() throws Exception {
+        // Chooser "kurumsal akışa öncelik ver" dese bile, veri yoksa
+        // (Django'nun "bağlamda yok" tek cümlesi) öncelik verilecek bir
+        // şey yok — teknik odağa zorla düşülmeli.
+        String noInstitutionalData = """
+                TEKNİK GÖRÜNÜM
+                30 dakikalık grafikte fiyat düşüş trendinde. RSI 34.6 nötr bölgede.
+
+                TEMEL DURUM
+                F/K oranı 3.24 ile düşük seviyelerde.
+
+                KONSENSUS
+                Piyasa rejimi bull, THYAO endeksten negatif ayrışıyor.
+
+                KURUMSAL AKIŞ
+                Takas/AKD verisi bağlamda yok.
+
+                RİSK
+                ATR oranı %0.31 ile volatilite düşük.
+
+                ÖZET
+                Teknik tablo kısa vadede zayıf. [SKOR: SAT]
+                """;
+        FakeLlm llm = new FakeLlm();
+        var generator = new VelzonAiBriefingPostGenerator(llm, () -> true);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", noInstitutionalData);
+
+        generator.adapt(briefing);
+
+        assertTrue(llm.lastUser.contains("ÖNCELİK TEKNİK GÖRÜNÜM"));
+    }
+
+    @Test
     void adaptThrowsOnMalformedLlmResponse() {
         FakeLlm llm = new FakeLlm();
         llm.response = "not json";

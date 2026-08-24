@@ -37,13 +37,18 @@ public class VelzonAiBriefingPostGenerator {
             - NEVER fabricate numbers not present in the source text.
             - The source may include a "KURUMSAL AKIŞ" (institutional flow)
               section listing specific institution names with buy/sell
-              percentages (e.g. "AKD'de IS %35.8 alıcı, YATIRIM FINANSMAN
-              %33.1 satıcı"). Include this verbatim — institution names AND
-              percentages, not summarized away or genericized — in
-              "instagramCaption"/"facebookCaption" whenever the source has
-              it. For "x", include it only if it fits within the 280-char
-              budget; if not, prioritize the technical/summary content for
-              "x" and let the longer captions carry the institutional detail.
+              percentages and lot figures (e.g. "AKD'de IS %35.8 alıcı
+              (+38.762 lot), YATIRIM FINANSMAN %33.1 satıcı"). Include this
+              verbatim — institution names AND percentages/lot numbers, not
+              summarized away or genericized — in "instagramCaption"/
+              "facebookCaption" whenever the source has it, regardless of
+              the "x" focus below.
+            - For "x": the user message tells you, PER REQUEST, which content
+              to lead with — either TEKNİK GÖRÜNÜM or KURUMSAL AKIŞ. Write
+              that one first; if the 280-char budget leaves room, briefly
+              mention the other one second. Never skip the requested focus
+              to make room for the other — the requested focus always wins
+              the limited space.
             - Each post must end with a call-to-action driving to Velzon's
               terminal: something like "Daha fazla veri için Velzon'da
               https://www.velzon.tr/terminal/ sayfasını inceleyin." (Turkish,
@@ -63,23 +68,60 @@ public class VelzonAiBriefingPostGenerator {
 
     private final LlmClient llm;
     private final Gson gson = new Gson();
+    private final java.util.function.Supplier<Boolean> xFocusChooser;
 
     public record AdaptedContent(String xText, String instagramCaption,
                                  String facebookCaption, String imagePrompt) {
     }
 
     public VelzonAiBriefingPostGenerator(LlmClient llm) {
+        this(llm, () -> java.util.concurrent.ThreadLocalRandom.current().nextBoolean());
+    }
+
+    /**
+     * Testte "x" odağını (teknik/kurumsal akış) deterministik seçmek için —
+     * kullanıcının 2026-08-24 talebi: X tweet'i her zaman teknik özete
+     * öncelik vermesin, bazen KURUMSAL AKIŞ verisi de öne çıksın. Gerçek
+     * seçim {@code xFocusChooser}'a bırakılır (varsayılan: %50 rastgele);
+     * KURUMSAL AKIŞ bölümünde veri yoksa ({@link #hasInstitutionalFlowData})
+     * seçim ne olursa olsun teknik odağa düşülür — olmayan veriye öncelik
+     * vermenin anlamı yok.
+     */
+    VelzonAiBriefingPostGenerator(LlmClient llm, java.util.function.Supplier<Boolean> xFocusChooser) {
         this.llm = llm;
+        this.xFocusChooser = xFocusChooser;
+    }
+
+    /** KURUMSAL AKIŞ bölümünde gerçek veri var mı — "bağlamda yok" tek cümlesi değil mi. */
+    private static boolean hasInstitutionalFlowData(String text) {
+        int idx = text.indexOf("KURUMSAL AKIŞ");
+        if (idx < 0) {
+            return false;
+        }
+        int end = text.indexOf("RİSK", idx);
+        String section = end > idx ? text.substring(idx, end) : text.substring(idx);
+        return !section.contains("bağlamda yok");
     }
 
     public AdaptedContent adapt(VelzonBriefingClient.Briefing briefing) throws Exception {
+        boolean prioritizeInstitutionalForX = hasInstitutionalFlowData(briefing.text())
+                && xFocusChooser.get();
+        String xFocusNote = prioritizeInstitutionalForX
+                ? "Bu tur için \"x\" alanında ÖNCELİK KURUMSAL AKIŞ verisinde "
+                        + "(kurum adı + lot/yüzde) olsun — önce o cümleyi yaz, yer "
+                        + "kalırsa teknik özeti kısaca ekle."
+                : "Bu tur için \"x\" alanında ÖNCELİK TEKNİK GÖRÜNÜM özetinde olsun "
+                        + "— önce o cümleyi yaz, yer kalırsa kurumsal akıştan kısaca bahset.";
+
         String user = String.format("""
                 Sembol: %s (zaman dilimi: %s)
+
+                %s
 
                 --- ANALİZ METNİ BAŞLIYOR ---
                 %s
                 --- ANALİZ METNİ BİTTİ ---
-                """, briefing.symbol(), briefing.timeframe(), briefing.text());
+                """, briefing.symbol(), briefing.timeframe(), xFocusNote, briefing.text());
 
         String raw = LlmJson.strip(llm.complete(SYSTEM, user));
         JsonObject resp;
