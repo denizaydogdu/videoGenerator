@@ -222,4 +222,41 @@ class VelzonAiBriefingPostGeneratorTest {
 
         assertDoesNotThrow(() -> generator.adapt(briefing));
     }
+
+    @Test
+    void adaptTruncatesInstagramCaptionInsteadOfThrowingWhenTooLong() throws Exception {
+        // 2026-08-24 canlı bug: Instagram "caption too long" (2200 karakter
+        // sert sınır) ile reddetti — X ve Facebook o turda sorunsuzdu, bu
+        // yüzden fırlatmak yerine kısaltmalıyız (fırlatmak X/FB'yi de kaçırır).
+        FakeLlm llm = new FakeLlm();
+        String tooLong = "THYAO analizinde kurumsal akış çok zengin. " + "a".repeat(2300);
+        llm.response = "{\"x\":\"THYAO teknik görünümde zayıf. "
+                + "Daha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.\","
+                + "\"instagramCaption\":\"" + tooLong + "\","
+                + "\"facebookCaption\":\"THYAO analizi burada.\",\"imagePrompt\":\"p\"}";
+        var generator = new VelzonAiBriefingPostGenerator(llm);
+        var briefing = new VelzonBriefingClient.Briefing("THYAO", "1G", FULL_BRIEFING);
+
+        var adapted = generator.adapt(briefing);
+
+        assertTrue(adapted.instagramCaption().length() <= 2200,
+                "kısaltma sonrası hâlâ 2200'ü aşıyor: " + adapted.instagramCaption().length());
+        assertTrue(adapted.instagramCaption().contains("THYAO"), "sembol kısaltmada kayboldu");
+        assertTrue(adapted.instagramCaption().contains("velzon.tr/terminal"), "CTA linki kayboldu");
+    }
+
+    @Test
+    void truncateForInstagramLeavesShortCaptionUnchanged() {
+        String shortCaption = "THYAO kısa bir analiz.";
+        assertEquals(shortCaption, VelzonAiBriefingPostGenerator.truncateForInstagram(shortCaption));
+    }
+
+    @Test
+    void truncateForInstagramFitsWithinLimitAndKeepsCta() {
+        String longCaption = "THYAO analizinde çok fazla detay var. " + "x".repeat(3000);
+        String result = VelzonAiBriefingPostGenerator.truncateForInstagram(longCaption);
+
+        assertTrue(result.length() <= 2200, "sonuç 2200'ü aşıyor: " + result.length());
+        assertTrue(result.contains("https://www.velzon.tr/terminal/"), "CTA linki yok");
+    }
 }

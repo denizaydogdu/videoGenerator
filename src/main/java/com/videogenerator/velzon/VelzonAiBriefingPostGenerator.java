@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 public class VelzonAiBriefingPostGenerator {
     private static final Logger logger = LoggerFactory.getLogger(VelzonAiBriefingPostGenerator.class);
     private static final int MAX_X_LEN = 280;
+    private static final int MAX_IG_CAPTION_LEN = 2200; // Instagram API'nin sert sınırı
 
     private static final String SYSTEM = """
             You adapt a Turkish AI-generated stock analysis (from Velzon, a BIST
@@ -61,8 +62,16 @@ public class VelzonAiBriefingPostGenerator {
               can be phrased naturally, but the URL must be included verbatim).
             - "x": max 280 characters TOTAL including the CTA and URL — count
               carefully, this is a hard limit.
-            - "instagramCaption"/"facebookCaption": longer form is fine, more
-              educational detail from the source, ending with the same CTA.
+            - "instagramCaption": longer form is fine, more educational detail
+              from the source, ending with the same CTA — but max 2200
+              characters TOTAL, Instagram's hard API limit (a longer caption
+              is REJECTED by Instagram, not truncated — count carefully; if
+              the full KURUMSAL AKIŞ detail doesn't fit, keep the highest-
+              value parts — SUREKLILIK/CELISKI lines and top institutions —
+              and trim the more repetitive per-institution detail first).
+            - "facebookCaption": longer form is fine, more educational detail
+              from the source, ending with the same CTA — Facebook has no
+              practical length limit for this use case.
             - "imagePrompt": ONE shared photorealistic, brand-safe image prompt
               (financial dashboard / candlestick chart imagery) used across all
               three platforms — NO people/faces, NO text overlays, NO specific
@@ -163,6 +172,16 @@ public class VelzonAiBriefingPostGenerator {
         }
         String instagramCaption = requireField(resp, "instagramCaption");
         String facebookCaption = requireField(resp, "facebookCaption");
+        // 2026-08-24 canlı bug: KURUMSAL AKIŞ zenginleşince Instagram "caption
+        // too long" (2200 karakter sert sınırı) ile reddetti — Facebook'ta
+        // sorun yoktu, sadece Instagram'a özel. FIRLATMA — bunu bloklarsak
+        // X ve Facebook da o turu (aslında sorunsuz oldukları hâlde) kaçırır.
+        // Güvenli kısaltma: her platformun bağımsız denenmesi garantisi bozulmaz.
+        if (instagramCaption.length() > MAX_IG_CAPTION_LEN) {
+            logger.warn("Instagram caption {} char, {} sınırını aşıyor — kısaltılıyor",
+                    instagramCaption.length(), MAX_IG_CAPTION_LEN);
+            instagramCaption = truncateForInstagram(instagramCaption);
+        }
 
         // Prompt talimatı yeterli olmayabilir (bkz. 2026-08-24: KURUMSAL AKIŞ
         // odağı istenince LLM sembolü hiç yazmadan attı) — sessizce
@@ -176,6 +195,32 @@ public class VelzonAiBriefingPostGenerator {
                 requireField(resp, "imagePrompt"));
         logger.info("Adapted AI briefing for {} into 3-platform content", briefing.symbol());
         return result;
+    }
+
+    private static final String FALLBACK_CTA =
+            "\n\nDaha fazla veri için Velzon'da https://www.velzon.tr/terminal/ sayfasını inceleyin.";
+
+    /**
+     * 2200 karakteri aşan bir Instagram caption'ını, CTA/link'i KORUYARAK
+     * kısaltır — LLM'in ürettiği orijinal CTA cümlesi ne olursa olsun,
+     * bilinen sabit bir CTA'ya düşülür (kısaltma sonrası orijinal CTA'nın
+     * hâlâ sığdığından emin olmak zor, sabit metin garantili sığar).
+     * Kelime ortasında kesmemek için son makul boşluğa geri döner.
+     */
+    static String truncateForInstagram(String caption) {
+        if (caption.length() <= MAX_IG_CAPTION_LEN) {
+            return caption;
+        }
+        int bodyBudget = MAX_IG_CAPTION_LEN - FALLBACK_CTA.length() - 1; // "…" için 1
+        if (bodyBudget < 0) {
+            bodyBudget = 0;
+        }
+        String body = caption.length() > bodyBudget ? caption.substring(0, bodyBudget) : caption;
+        int lastSpace = body.lastIndexOf(' ');
+        if (lastSpace > bodyBudget - 80) {
+            body = body.substring(0, lastSpace);
+        }
+        return body.stripTrailing() + "…" + FALLBACK_CTA;
     }
 
     private static String requireField(JsonObject o, String field) {
