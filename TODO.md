@@ -660,7 +660,18 @@ biz üretmiyoruz, Django'nun zaten ürettiğini çekip uyarlıyoruz.
       (GESAN örneğindeki gibi "görünen satış aslında virman mıydı"
       analizi) hâlâ ayrı, büyük bir özellik — kod tabanında hiç emsali
       yok, kalıcı geçmiş veri saklama + yeni karşılaştırma mantığı
-      gerektiriyor, henüz başlanmadı.
+      gerektiriyor, henüz başlanmadı. **Deploy edildi (kullanıcı Jenkins'ten
+      deploy yaptı) ve canlı doğrulandı** ✅ — 13:30 turunun (THYAO)
+      Facebook caption'ı gerçek lot/haftalık delta içeriyordu, Graph
+      API'den teyit edildi.
+- [x] **X tweet'i artık bazen KURUMSAL AKIŞ'a öncelik veriyor** ✅
+      (2026-08-24, 14:00 civarı) — kullanıcı canlı postları görünce fark
+      etti: X her turda teknik özete öncelik veriyordu, kurumsal akış hiç
+      öne çıkmıyordu. `VelzonAiBriefingPostGenerator`'a her tur için
+      rastgele (%50) bir "x odağı" seçimi eklendi (KURUMSAL AKIŞ verisi
+      yoksa seçim ne olursa olsun teknik odağa zorla düşülür). 3 yeni
+      test, 343/343 tam regresyon. Prod'a deploy edildi (15:00 turundan
+      önce yetiştirildi).
 
 ## 9️⃣ Pinterest yan deneyi (2026-08-10 başladı, Unsolved Files'tan ayrı)
 
