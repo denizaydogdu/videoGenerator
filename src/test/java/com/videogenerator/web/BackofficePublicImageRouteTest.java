@@ -24,8 +24,12 @@ class BackofficePublicImageRouteTest {
     }
 
     @Test
-    void pinterestImageRouteIsPublic() {
-        assertTrue(BackofficeServer.isPublicImageRoute(
+    void pinterestImageRouteIsNotPublic() {
+        // Pinterest görseli base64 olarak media_source JSON'ına gömüyor
+        // (PinterestApiClient.createPin) — Pinterest'in sunucuları bu URL'i
+        // hiç çekmiyor, sadece backoffice UI'daki insan önizlemesi için var,
+        // o da zaten "/" context'inin Authenticator'ıyla korunuyor.
+        assertFalse(BackofficeServer.isPublicImageRoute(
                 seg("/api/pinterest/batches/batch-1/images/pin-01.png")));
     }
 

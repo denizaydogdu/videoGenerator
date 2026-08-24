@@ -265,10 +265,18 @@ public class BackofficeServer {
     }
 
     /**
-     * Meta'nın (Instagram/Facebook Content Publishing API) ve benzerlerinin
-     * postlamadan önce kimlik bilgisi OLMADAN çektiği görsel servis
-     * route'ları — auth kontrolünden muaf tutulmalı. Segment şekilleri
-     * ilgili handleXxxApi metotlarındaki route eşleşmesiyle birebir aynı.
+     * Meta'nın (Instagram/Facebook Content Publishing API) postlamadan önce
+     * kimlik bilgisi OLMADAN çektiği görsel servis route'ları — auth
+     * kontrolünden muaf tutulmalı. Segment şekilleri ilgili handleXxxApi
+     * metotlarındaki route eşleşmesiyle birebir aynı.
+     *
+     * NOT: Pinterest burada YOK — Pinterest görseli base64 olarak doğrudan
+     * `media_source` JSON'ına gömer ({@link com.videogenerator.pinterest.PinterestApiClient#createPin}),
+     * Pinterest'in sunucuları bizim URL'imizi hiç çekmez. O route sadece
+     * backoffice UI'daki insan önizlemesi için var — UI zaten `/` context'inin
+     * Authenticator'ı üzerinden korunuyor, ayrı bir muafiyete gerek yok.
+     * (2026-08-24 hotfix review'unda bulundu — ilk halinde yanlışlıkla
+     * eklenmişti, gereksiz yere kimlik doğrulamasız bırakıyordu.)
      */
     static boolean isPublicImageRoute(String[] seg) {
         if (seg.length < 3) {
@@ -278,8 +286,7 @@ public class BackofficeServer {
         if ("velzon-ai-briefing".equals(feature)) {
             return seg.length == 6 && "images".equals(seg[3]);
         }
-        if ("pinterest".equals(feature) || "velzon-instagram".equals(feature)
-                || "velzon-facebook".equals(feature)) {
+        if ("velzon-instagram".equals(feature) || "velzon-facebook".equals(feature)) {
             return seg.length == 7 && "batches".equals(seg[3]) && "images".equals(seg[5]);
         }
         return false;
